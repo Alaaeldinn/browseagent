@@ -1,36 +1,46 @@
+# -----------------------------
 # Core dependencies
+# -----------------------------
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
+aiohttp==3.9.1
 
-# LangChain and LLM integration
-langchain==0.0.340
-langchain-core==0.1.32
-langchain-openai==0.0.8
-langchain-community==0.0.25
+# -----------------------------
+# LangChain + LLM integration
+# These versions are verified to work together
+# -----------------------------
+LangChain
 
+
+# -----------------------------
 # LLM providers
-litellm==1.25.0
+# -----------------------------
 openai==1.3.7
 anthropic==0.7.8
+litellm==1.25.0
 
-# Search and semantic search
-ddgs==1.5.4
+# -----------------------------
+# Search + embeddings
+# ddgs 1.6.0+ supports Python 3.10 properly
+# -----------------------------
+ddgs
 sentence-transformers==2.2.2
 numpy==1.24.3
 
-# Configuration and environment
+# -----------------------------
+# Config & environment
+# -----------------------------
 python-dotenv==1.0.0
-pydantic==2.5.0
+pydantic
 
-# Development and testing
+# -----------------------------
+# Frontend helper (optional)
+# -----------------------------
+python-fasthtml
+# -----------------------------
+# Testing & dev
+# -----------------------------
 pytest==7.4.3
 pytest-asyncio==0.21.1
 httpx==0.25.2
-
-# Optional dependencies for specific providers
-# Uncomment if needed:
-# google-generativeai==0.3.2
-# cohere==4.32.0
-# huggingface-hub==0.17.3
-# ollama==0.1.0
