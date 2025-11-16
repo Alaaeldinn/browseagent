@@ -1,12 +1,19 @@
+"""
+BrowseAgent with LLM Integration
+
+This module implements the BrowseAgent class with support for multiple LLM providers
+through LiteLLM, providing a unified interface for different AI models.
+"""
+
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
 from langchain.tools import Tool
 from tools import DDGSSearchTool, SemanticSearchTool
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 from dotenv import load_dotenv
+from llm_config import LLMManager, LLMConfig, LLMProvider
 
 # Load environment variables
 load_dotenv()
@@ -19,21 +26,28 @@ class BrowseAgent:
     1. Search the web using DuckDuckGo
     2. Apply semantic search to filter and rank results
     3. Generate responses based on the most relevant information
+    4. Support multiple LLM providers through LiteLLM
     """
     
-    def __init__(self, model_name: str = "gpt-3.5-turbo", api_key: str = None):
+    def __init__(self, model_name: str = None, api_key: str = None, llm_manager: LLMManager = None):
         """
         Initialize the BrowseAgent.
         
         Args:
-            model_name: The LLM model to use (default: "gpt-3.5-turbo")
-            api_key: OpenAI API key (can also be set via OPENAI_API_KEY environment variable)
+            model_name: The LLM model to use (default: from LLMManager)
+            api_key: API key for the model (if not in LLMManager)
+            llm_manager: Optional LLMManager instance (creates default if not provided)
         """
-        self.model_name = model_name
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        # Initialize LLM manager
+        self.llm_manager = llm_manager or LLMManager()
         
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass api_key parameter.")
+        # Set model and API key
+        if model_name:
+            self.set_model(model_name, api_key)
+        else:
+            self.model_name = self.llm_manager.get_default_model()
+            if not self.model_name:
+                raise ValueError("No default model configured. Please provide a model name or configure models in LLMManager.")
         
         # Initialize tools
         self.search_tool = DDGSSearchTool()
@@ -57,7 +71,7 @@ class BrowseAgent:
         
         # Initialize the agent
         self.agent = self._create_agent()
-        
+    
     def _create_agent(self):
         """
         Create the LangChain agent with the appropriate tools and prompt.
@@ -92,16 +106,17 @@ Remember: You have access to current web search capabilities, so you can provide
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ])
         
-        # Initialize the LLM
-        llm = ChatOpenAI(
-            model_name=self.model_name,
-            api_key=self.api_key,
-            temperature=0.1  # Lower temperature for more consistent responses
-        )
+        # Get model configuration
+        config = self.llm_manager.get_config(self.model_name)
+        if not config:
+            raise ValueError(f"Configuration not found for model: {self.model_name}")
+        
+        # Initialize the LLM using LiteLLM
+        llm_params = self.llm_manager.get_litellm_params(self.model_name)
         
         # Create the agent
         agent = create_openai_tools_agent(
-            llm=llm,
+            llm=llm_params,  # Pass the parameters directly
             tools=self.tools,
             prompt=prompt
         )
@@ -217,14 +232,16 @@ Remember: You have access to current web search capabilities, so you can provide
             return {
                 "response": result.get("output", ""),
                 "intermediate_steps": result.get("intermediate_steps", []),
-                "chat_history": result.get("chat_history", [])
+                "chat_history": result.get("chat_history", []),
+                "model_used": self.model_name
             }
             
         except Exception as e:
             return {
                 "response": f"Error: {str(e)}",
                 "intermediate_steps": [],
-                "chat_history": []
+                "chat_history": [],
+                "model_used": self.model_name
             }
     
     def get_available_models(self) -> List[str]:
@@ -234,13 +251,19 @@ Remember: You have access to current web search capabilities, so you can provide
         Returns:
             List of available model names
         """
-        return [
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-16k",
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-4-32k"
-        ]
+        return self.llm_manager.list_available_models()
+    
+    def get_models_by_provider(self, provider: LLMProvider) -> List[str]:
+        """
+        Get list of models from a specific provider.
+        
+        Args:
+            provider: LLM provider to filter by
+            
+        Returns:
+            List of model names from the specified provider
+        """
+        return self.llm_manager.list_models_by_provider(provider)
     
     def set_model(self, model_name: str, api_key: str = None) -> None:
         """
@@ -250,8 +273,61 @@ Remember: You have access to current web search capabilities, so you can provide
             model_name: The new model name
             api_key: Optional new API key
         """
+        if model_name not in self.llm_manager.configs:
+            # Add new configuration if not exists
+            config = self.llm_manager.get_config(model_name)
+            if not config:
+                raise ValueError(f"Model {model_name} not found in configurations")
+            
+            # If API key is provided, update the configuration
+            if api_key:
+                config.api_key = api_key
+                self.llm_manager.add_config(config)
+        
         self.model_name = model_name
-        self.api_key = api_key or self.api_key
         
         # Recreate the agent with the new model
         self.agent = self._create_agent()
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """
+        Get information about the current model.
+        
+        Returns:
+            Dictionary containing model information
+        """
+        config = self.llm_manager.get_config(self.model_name)
+        if not config:
+            return {}
+        
+        return {
+            "model_name": config.model_name,
+            "provider": config.provider.value,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "is_valid": self.llm_manager.validate_config(self.model_name)
+        }
+    
+    def test_current_model(self, test_query: str = "Hello, how are you?") -> Dict[str, Any]:
+        """
+        Test the current model with a sample query.
+        
+        Args:
+            test_query: Test query to send to the model
+            
+        Returns:
+            Dictionary containing test results
+        """
+        return self.llm_manager.test_model(self.model_name, test_query)
+    
+    def test_all_models(self, test_query: str = "Hello, how are you?") -> Dict[str, Any]:
+        """
+        Test all available models with a sample query.
+        
+        Args:
+            test_query: Test query to send to the models
+            
+        Returns:
+            Dictionary containing test results for all models
+        """
+        return self.llm_manager.test_all_models(test_query)
