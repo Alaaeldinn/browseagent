@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrowseAgent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #FFF8DC;
+            color: #2F4F4F;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #8B4513;
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .query-section {
+            background-color: #FFFAF0;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #DEB887;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2F4F4F;
+        }
+        
+        textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #DEB887;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background-color: white;
+            font-family: inherit;
+        }
+        
+        textarea:focus, select:focus {
+            outline: none;
+            border-color: #FF8C00;
+            box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background-color: #FF8C00;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #FF7F00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background-color: #696969;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background-color: #D2691E;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #CD853F;
+        }
+        
+        .results-section {
+            background-color: #FFFAF0;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #DEB887;
+            display: none;
+        }
+        
+        .results-section.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .result-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #DEB887;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .result-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #8B4513;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #DEB887;
+        }
+        
+        .result-content {
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        
+        .sources-section {
+            margin-top: 2rem;
+        }
+        
+        .sources-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #8B4513;
+        }
+        
+        .source-item {
+            background-color: white;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid #DEB887;
+            transition: all 0.3s ease;
+        }
+        
+        .source-item:hover {
+            border-color: #FF8C00;
+            box-shadow: 0 2px 8px rgba(255, 140, 0, 0.1);
+        }
+        
+        .source-title {
+            font-weight: 600;
+            color: #8B4513;
+            margin-bottom: 0.25rem;
+        }
+        
+        .source-link {
+            color: #FF8C00;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+        
+        .source-link:hover {
+            text-decoration: underline;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 4px solid #DEB887;
+            border-top: 4px solid #FF8C00;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #696969;
+            font-size: 1.1rem;
+        }
+        
+        .error-message {
+            background-color: #FEE;
+            color: #DC143C;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #DC143C;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .success-message {
+            background-color: #E8F5E9;
+            color: #32CD32;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #32CD32;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .model-info {
+            background-color: white;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: #696969;
+            border: 1px solid #DEB887;
+            margin-top: 1rem;
+        }
+        
+        .intermediate-steps {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #DEB887;
+        }
+        
+        .step {
+            background-color: white;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 4px solid #FF8C00;
+        }
+        
+        .step-title {
+            font-weight: 600;
+            color: #8B4513;
+            margin-bottom: 0.5rem;
+        }
+        
+        .step-content {
+            font-size: 0.875rem;
+            color: #696969;
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .button-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BrowseAgent</h1>
+            <p class="subtitle">AI-Powered Research Assistant</p>
+        </header>
+        
+        <main>
+            <div class="query-section">
+                <form id="query-form">
+                    <div class="form-group">
+                        <label for="query">Your Research Query</label>
+                        <textarea 
+                            id="query" 
+                            name="query" 
+                            placeholder="Enter your research question here..."
+                            required
+                        ></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="model">Select Model</label>
+                        <select id="model" name="model">
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                        </select>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="submit" id="submit-btn" class="btn-primary">
+                            <i class="fas fa-search"></i> Research
+                        </button>
+                        <button type="button" id="clear-btn" class="btn-secondary">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                    
+                    <div class="model-info" id="model-info">
+                        Selected model will be displayed here
+                    </div>
+                </form>
+            </div>
+            
+            <div class="loading-spinner" id="loading-spinner">
+                <div class="spinner"></div>
+                <div class="loading-text">Processing your query...</div>
+            </div>
+            
+            <div class="error-message" id="error-message"></div>
+            <div class="success-message" id="success-message"></div>
+            
+            <div class="results-section" id="results-section">
+                <div class="result-card">
+                    <div class="result-title">Research Results</div>
+                    <div class="result-content" id="result-content"></div>
+                </div>
+                
+                <div class="sources-section">
+                    <div class="sources-title">Sources</div>
+                    <div id="sources-list"></div>
+                </div>
+                
+                <div class="intermediate-steps">
+                    <div class="sources-title">Processing Steps</div>
+                    <div id="steps-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('query-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const errorMessage = document.getElementById('error-message');
+            const successMessage = document.getElementById('success-message');
+            const resultsSection = document.getElementById('results-section');
+            const resultContent = document.getElementById('result-content');
+            const sourcesList = document.getElementById('sources-list');
+            const stepsList = document.getElementById('steps-list');
+            const modelSelect = document.getElementById('model');
+            const modelInfo = document.getElementById('model-info');
+            
+            // Update model info when selection changes
+            modelSelect.addEventListener('change', function() {
+                modelInfo.textContent = `Selected model: ${this.value}`;
+            });
+            
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const query = document.getElementById('query').value.trim();
+                const model = modelSelect.value;
+                
+                if (!query) {
+                    alert('Please enter a query');
+                    return;
+                }
+                
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Researching...';
+                loadingSpinner.style.display = 'block';
+                errorMessage.classList.remove('show');
+                successMessage.classList.remove('show');
+                resultsSection.classList.remove('show');
+                
+                try {
+                    const response = await fetch('/query', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            model: model
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Display results
+                        resultContent.textContent = data.response || 'No response received.';
+                        
+                        // Display sources
+                        sourcesList.innerHTML = '';
+                        if (data.sources && data.sources.length > 0) {
+                            data.sources.forEach((source, index) => {
+                                const sourceItem = document.createElement('div');
+                                sourceItem.className = 'source-item';
+                                sourceItem.innerHTML = `
+                                    <div class="source-title">${source.title || `Source ${index + 1}`}</div>
+                                    <a href="${source.link || '#'}" target="_blank" class="source-link">View Source</a>
+                                `;
+                                sourcesList.appendChild(sourceItem);
+                            });
+                        } else {
+                            sourcesList.innerHTML = '<p>No sources found.</p>';
+                        }
+                        
+                        // Display processing steps
+                        stepsList.innerHTML = '';
+                        if (data.intermediate_steps && data.intermediate_steps.length > 0) {
+                            data.intermediate_steps.forEach((step, index) => {
+                                const stepItem = document.createElement('div');
+                                stepItem.className = 'step';
+                                stepItem.innerHTML = `
+                                    <div class="step-title">Step ${index + 1}</div>
+                                    <div class="step-content">${step || 'No step details'}</div>
+                                `;
+                                stepsList.appendChild(stepItem);
+                            });
+                        } else {
+                            stepsList.innerHTML = '<p>No processing steps recorded.</p>';
+                        }
+                        
+                        // Show success message
+                        successMessage.textContent = 'Research completed successfully!';
+                        successMessage.classList.add('show');
+                        
+                        // Show results section
+                        resultsSection.classList.add('show');
+                    } else {
+                        throw new Error(data.error || data.detail || 'Request failed');
+                    }
+                } catch (error) {
+                    errorMessage.textContent = error.message;
+                    errorMessage.classList.add('show');
+                } finally {
+                    // Hide loading state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-search"></i> Research';
+                    loadingSpinner.style.display = 'none';
+                }
+            });
+            
+            clearBtn.addEventListener('click', function() {
+                document.getElementById('query').value = '';
+                modelSelect.selectedIndex = 0;
+                modelInfo.textContent = 'Selected model will be displayed here';
+                resultsSection.classList.remove('show');
+                errorMessage.classList.remove('show');
+                successMessage.classList.remove('show');
+            });
+        });
+    </script>
+</body>
+</html>

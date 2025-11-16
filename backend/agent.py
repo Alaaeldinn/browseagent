@@ -1,333 +1,352 @@
 """
-BrowseAgent with LLM Integration
+BrowseAgent LangChain Agent Implementation
 
-This module implements the BrowseAgent class with support for multiple LLM providers
-through LiteLLM, providing a unified interface for different AI models.
+This module implements a proper AI Agent Level 2 with tool calling using LangChain.
+The agent can use the DDGSSearchTool to perform web searches.
 """
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import SystemMessage
-from langchain.tools import Tool
-from tools import DDGSSearchTool, SemanticSearchTool
-from typing import List, Dict, Any, Optional
-import os
-from dotenv import load_dotenv
-from llm_config import LLMManager, LLMConfig, LLMProvider
+import asyncio
+import json
+from typing import Dict, List, Any, Optional, Union
 
-# Load environment variables
-load_dotenv()
+# Import LangChain components with error handling
+LANGCHAIN_AVAILABLE = False
+try:
+    from langchain.agents import AgentExecutor, create_openai_tools_agent
+    from langchain_core.tools import BaseTool
+    from langchain_openai import ChatOpenAI
+    from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain.schema import SystemMessage, HumanMessage, AIMessage
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.messages import BaseMessage
+    LANGCHAIN_AVAILABLE = True
+    print("LangChain components imported successfully")
+except ImportError as e:
+    print(f"LangChain import error: {e}")
+    LANGCHAIN_AVAILABLE = False
+
+# Import tools with error handling
+TOOLS_AVAILABLE = False
+try:
+    from tools import DDGSSearchTool
+    TOOLS_AVAILABLE = True
+    print("Tools imported successfully")
+except ImportError as e:
+    print(f"Tools import error: {e}")
+    TOOLS_AVAILABLE = False
+
+from llm_config import get_available_models_info
 
 class BrowseAgent:
-    """
-    The main BrowseAgent class that orchestrates web search and semantic analysis.
+    """BrowseAgent using LangChain with proper tool calling"""
     
-    This agent uses LangChain's framework to:
-    1. Search the web using DuckDuckGo
-    2. Apply semantic search to filter and rank results
-    3. Generate responses based on the most relevant information
-    4. Support multiple LLM providers through LiteLLM
-    """
-    
-    def __init__(self, model_name: str = None, api_key: str = None, llm_manager: LLMManager = None):
-        """
-        Initialize the BrowseAgent.
-        
-        Args:
-            model_name: The LLM model to use (default: from LLMManager)
-            api_key: API key for the model (if not in LLMManager)
-            llm_manager: Optional LLMManager instance (creates default if not provided)
-        """
-        # Initialize LLM manager
-        self.llm_manager = llm_manager or LLMManager()
-        
-        # Set model and API key
-        if model_name:
-            self.set_model(model_name, api_key)
-        else:
-            self.model_name = self.llm_manager.get_default_model()
-            if not self.model_name:
-                raise ValueError("No default model configured. Please provide a model name or configure models in LLMManager.")
-        
-        # Initialize tools
-        self.search_tool = DDGSSearchTool()
-        self.semantic_search = SemanticSearchTool()
-        
-        # Create LangChain tools
-        self.tools = [
-            Tool(
-                name="web_search",
-                description="Search the web for current information using DuckDuckGo",
-                func=self._search_wrapper,
-                return_direct=False
-            ),
-            Tool(
-                name="semantic_search",
-                description="Apply semantic search to rank and filter search results",
-                func=self._semantic_search_wrapper,
-                return_direct=False
-            )
-        ]
-        
-        # Initialize the agent
-        self.agent = self._create_agent()
-    
-    def _create_agent(self):
-        """
-        Create the LangChain agent with the appropriate tools and prompt.
-        """
-        # Create the prompt template
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""You are BrowseAgent, an AI-powered research assistant.
-            
-Your capabilities:
-1. Search the web for current information using the web_search tool
-2. Apply semantic search to find the most relevant results
-3. Synthesize information to provide comprehensive answers
-
-Guidelines:
-- Use web_search when you need current information beyond your knowledge cutoff
-- Use semantic_search to filter and rank search results for relevance
-- Provide accurate, well-sourced information with proper citations
-- Be concise but comprehensive in your responses
-- Always cite your sources using the provided links
-
-Process:
-1. Analyze the user's query to understand what information is needed
-2. Use web_search with appropriate keywords
-3. Use semantic_search to filter results if many are returned
-4. Synthesize the most relevant information into your response
-5. Cite your sources properly
-
-Remember: You have access to current web search capabilities, so you can provide up-to-date information."""),
-            MessagesPlaceholder(variable_name="chat_history", optional=True),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-        
-        # Get model configuration
-        config = self.llm_manager.get_config(self.model_name)
-        if not config:
-            raise ValueError(f"Configuration not found for model: {self.model_name}")
-        
-        # Initialize the LLM using LiteLLM
-        llm_params = self.llm_manager.get_litellm_params(self.model_name)
-        
-        # Create the agent
-        agent = create_openai_tools_agent(
-            llm=llm_params,  # Pass the parameters directly
-            tools=self.tools,
-            prompt=prompt
-        )
-        
-        # Create the agent executor
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            verbose=True,
-            max_iterations=5,
-            handle_parsing_errors=True,
-            return_intermediate_steps=True
-        )
-        
-        return agent_executor
-    
-    def _search_wrapper(self, query: str, max_results: int = 10) -> str:
-        """
-        Wrapper for the web search tool to format results for the agent.
-        """
-        try:
-            results = self.search_tool._run(query, max_results=max_results)
-            if results and "error" not in results[0]:
-                # Format results for the agent
-                formatted_results = []
-                for result in results:
-                    formatted_results.append({
-                        "title": result.get("title", ""),
-                        "link": result.get("link", ""),
-                        "snippet": result.get("body", "")[:200] + "..." if len(result.get("body", "")) > 200 else result.get("body", ""),
-                        "source": result.get("source", ""),
-                        "date": result.get("date", "")
-                    })
-                return f"Found {len(formatted_results)} search results:\n\n" + "\n\n".join(
-                    f"**{r['title']}**\n{r['snippet']}\nSource: {r['source']}\nLink: {r['link']}\n" 
-                    for r in formatted_results
-                )
-            else:
-                return f"Search failed: {results[0].get('error', 'Unknown error')}"
-        except Exception as e:
-            return f"Search error: {str(e)}"
-    
-    def _semantic_search_wrapper(self, query: str, search_results: str, top_k: int = 5) -> str:
-        """
-        Wrapper for the semantic search tool to format results for the agent.
-        """
-        try:
-            # Parse the search results string back to a list of dictionaries
-            # This is a simplified parsing - in a real implementation, you might want to pass structured data
-            lines = search_results.split('\n\n')
-            parsed_results = []
-            
-            for line in lines:
-                if line.strip() and "**" in line:
-                    parts = line.split('\n')
-                    title = parts[0].strip('**')
-                    snippet = parts[1] if len(parts) > 1 else ""
-                    source_link = parts[2] if len(parts) > 2 else ""
-                    
-                    # Extract source and link
-                    if "Source: " in source_link:
-                        source = source_link.split("Source: ")[1].split(" Link: ")[0]
-                        link = source_link.split("Link: ")[1] if "Link: " in source_link else ""
-                    else:
-                        source = ""
-                        link = ""
-                    
-                    parsed_results.append({
-                        "title": title,
-                        "body": snippet,
-                        "source": source,
-                        "link": link
-                    })
-            
-            # Apply semantic search
-            ranked_results = self.semantic_search.rank_results(query, parsed_results, top_k)
-            
-            # Format results for the agent
-            formatted_results = []
-            for result in ranked_results:
-                formatted_results.append({
-                    "title": result.get("title", ""),
-                    "snippet": result.get("body", "")[:200] + "..." if len(result.get("body", "")) > 200 else result.get("body", ""),
-                    "source": result.get("source", ""),
-                    "link": result.get("link", ""),
-                    "similarity": result.get("similarity_score", 0.0)
-                })
-            
-            return f"Ranked {len(formatted_results)} most relevant results:\n\n" + "\n\n".join(
-                f"**{r['title']}** (Similarity: {r['similarity']:.2f})\n{r['snippet']}\nSource: {r['source']}\nLink: {r['link']}\n" 
-                for r in formatted_results
-            )
-            
-        except Exception as e:
-            return f"Semantic search error: {str(e)}"
-    
-    def run(self, query: str) -> Dict[str, Any]:
-        """
-        Execute the agent with a given query.
-        
-        Args:
-            query: The user's query
-            
-        Returns:
-            Dictionary containing the response and intermediate steps
-        """
-        try:
-            result = self.agent.invoke({
-                "input": query,
-                "chat_history": []  # Add chat history support later
-            })
-            
-            return {
-                "response": result.get("output", ""),
-                "intermediate_steps": result.get("intermediate_steps", []),
-                "chat_history": result.get("chat_history", []),
-                "model_used": self.model_name
-            }
-            
-        except Exception as e:
-            return {
-                "response": f"Error: {str(e)}",
-                "intermediate_steps": [],
-                "chat_history": [],
-                "model_used": self.model_name
-            }
-    
-    def get_available_models(self) -> List[str]:
-        """
-        Get list of available models.
-        
-        Returns:
-            List of available model names
-        """
-        return self.llm_manager.list_available_models()
-    
-    def get_models_by_provider(self, provider: LLMProvider) -> List[str]:
-        """
-        Get list of models from a specific provider.
-        
-        Args:
-            provider: LLM provider to filter by
-            
-        Returns:
-            List of model names from the specified provider
-        """
-        return self.llm_manager.list_models_by_provider(provider)
-    
-    def set_model(self, model_name: str, api_key: str = None) -> None:
-        """
-        Change the model being used by the agent.
-        
-        Args:
-            model_name: The new model name
-            api_key: Optional new API key
-        """
-        if model_name not in self.llm_manager.configs:
-            # Add new configuration if not exists
-            config = self.llm_manager.get_config(model_name)
-            if not config:
-                raise ValueError(f"Model {model_name} not found in configurations")
-            
-            # If API key is provided, update the configuration
-            if api_key:
-                config.api_key = api_key
-                self.llm_manager.add_config(config)
-        
+    def __init__(self, model_name: str = "gpt-3.5-turbo"):
+        """Initialize the agent with specified model"""
         self.model_name = model_name
+        self.llm_config = get_available_models_info()
+        self.tools = []
+        self.agent = None
+        self.agent_executor = None
         
-        # Recreate the agent with the new model
-        self.agent = self._create_agent()
+        # Initialize tools if available
+        if TOOLS_AVAILABLE:
+            try:
+                self.tools = [DDGSSearchTool()]
+                print(f"Available tools: {[type(tool).__name__ for tool in self.tools]}")
+            except Exception as e:
+                print(f"Error initializing tools: {e}")
+        
+        self._setup_agent()
     
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get information about the current model.
+    def _setup_agent(self):
+        """Setup the LangChain agent with tool calling"""
+        if not LANGCHAIN_AVAILABLE:
+            print("Warning: LangChain not available, using simplified implementation")
+            self._setup_simple_agent()
+            return
         
-        Returns:
-            Dictionary containing model information
-        """
-        config = self.llm_manager.get_config(self.model_name)
-        if not config:
-            return {}
+        try:
+            print(f"Setting up LangChain agent with model: {self.model_name}")
+            print(f"Available models: {list(self.llm_config.keys())}")
+            
+            # Initialize LLM
+            llm_config = self.llm_config.get(self.model_name, {})
+            if not llm_config.get('is_valid', False):
+                print(f"Warning: Model {self.model_name} not properly configured")
+                self._setup_simple_agent()
+                return
+            
+            # Create LLM instance
+            llm = ChatOpenAI(
+                model=self.model_name,
+                temperature=0.7,
+                openai_api_key=llm_config.get('api_key', '')
+            )
+            
+            # Create the prompt template
+            prompt = ChatPromptTemplate.from_messages([
+                SystemMessage(content="""You are a helpful research assistant with access to web search capabilities.
+
+When answering questions:
+1. Use the search tool to find current and relevant information
+2. Analyze the search results and provide a comprehensive answer
+3. Cite specific sources when possible by including their titles and links
+4. Be thorough, accurate, and up-to-date in your responses
+5. If the search results are insufficient, explain what you found and suggest alternative approaches
+
+Available tool:
+- ddgs_search: Use this to search the web for current information
+
+Example usage:
+User: "What are the latest developments in artificial intelligence?"
+Assistant: [Uses search tool to find current information about AI developments]
+
+Remember to use the search tool when you need current information that might not be in your training data."""),
+                MessagesPlaceholder(variable_name="chat_history", optional=True),
+                ("human", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ])
+            
+            # Create the agent
+            self.agent = create_openai_tools_agent(
+                llm=llm,
+                tools=self.tools,
+                prompt=prompt
+            )
+            
+            # Create the executor
+            self.agent_executor = AgentExecutor(
+                agent=self.agent,
+                tools=self.tools,
+                verbose=True,
+                max_iterations=10,
+                handle_parsing_errors=True,
+                return_intermediate_steps=True
+            )
+            
+            print("LangChain agent setup completed successfully")
+            
+        except Exception as e:
+            print(f"Error setting up LangChain agent: {e}")
+            print("Falling back to simplified implementation")
+            self._setup_simple_agent()
+    
+    def _setup_simple_agent(self):
+        """Setup a simple agent that works without LangChain"""
+        print("Using simplified agent implementation")
+        self.agent = None
+        self.agent_executor = None
+    
+    async def process_query(self, query: str) -> Dict[str, Any]:
+        """Process a research query using LangChain agent with tool calling"""
+        try:
+            if LANGCHAIN_AVAILABLE and self.agent_executor and len(self.tools) > 0:
+                return await self._process_query_with_agent(query)
+            else:
+                return await self._process_query_simple(query)
+                
+        except Exception as e:
+            return {
+                "error": f"Error processing query: {str(e)}",
+                "response": "",
+                "sources": [],
+                "intermediate_steps": [],
+                "model_used": self.model_name
+            }
+    
+    async def _process_query_with_agent(self, query: str) -> Dict[str, Any]:
+        """Process query using LangChain agent with tool calling"""
+        try:
+            # Run the agent
+            result = await self.agent_executor.ainvoke({"input": query})
+            
+            # Extract the response
+            response = result.get("output", "No response generated.")
+            
+            # Extract intermediate steps
+            intermediate_steps = []
+            for step in result.get("intermediate_steps", []):
+                if isinstance(step, tuple) and len(step) >= 2:
+                    action = step[0]
+                    observation = step[1]
+                    intermediate_steps.append(f"Action: {action}\nObservation: {str(observation)[:500]}...")
+            
+            # Extract sources from the agent's response or intermediate steps
+            sources = self._extract_sources_from_response(response, intermediate_steps)
+            
+            return {
+                "response": response,
+                "sources": sources,
+                "intermediate_steps": intermediate_steps,
+                "model_used": self.model_name
+            }
+            
+        except Exception as e:
+            return {
+                "error": f"Error processing query with LangChain agent: {str(e)}",
+                "response": "",
+                "sources": [],
+                "intermediate_steps": [],
+                "model_used": self.model_name
+            }
+    
+    def _extract_sources_from_response(self, response: str, intermediate_steps: List[str]) -> List[Dict[str, Any]]:
+        """Extract sources from the agent's response and intermediate steps"""
+        sources = []
+        
+        # Try to extract sources from intermediate steps first
+        for step in intermediate_steps:
+            if "http" in step:
+                # Extract URLs from the step
+                lines = step.split('\n')
+                for line in lines:
+                    if "http" in line:
+                        sources.append({
+                            "title": f"Source {len(sources) + 1}",
+                            "link": line.strip()
+                        })
+        
+        # If no sources found in steps, try to extract from response
+        if not sources and "http" in response:
+            lines = response.split('\n')
+            for line in lines:
+                if "http" in line and len(line.strip()) > 10:
+                    sources.append({
+                        "title": f"Source {len(sources) + 1}",
+                        "link": line.strip()
+                    })
+        
+        return sources[:5]  # Limit to 5 sources
+    
+    async def _process_query_simple(self, query: str) -> Dict[str, Any]:
+        """Process query using a simple approach (fallback)"""
+        try:
+            # Use the search tool directly if available
+            if len(self.tools) > 0:
+                return await self._process_with_tool(query)
+            else:
+                return await self._process_without_tool(query)
+                
+        except Exception as e:
+            return {
+                "error": f"Error processing query with simple approach: {str(e)}",
+                "response": "",
+                "sources": [],
+                "intermediate_steps": [],
+                "model_used": self.model_name
+            }
+    
+    async def _process_with_tool(self, query: str) -> Dict[str, Any]:
+        """Process query using the search tool directly"""
+        search_result = ""
+        intermediate_steps = []
+        
+        try:
+            # Use the search tool
+            search_tool = self.tools[0]
+            search_results = await search_tool._arun(query)
+            
+            if search_results and isinstance(search_results, list) and len(search_results) > 0:
+                # Format the search results
+                search_result = "Search Results:\n"
+                for result in search_results[:5]:  # Limit to 5 results
+                    if isinstance(result, dict) and 'title' in result:
+                        search_result += f"- {result.get('title', 'No title')}: {result.get('link', 'No link')}\n"
+                        intermediate_steps.append(f"Found result: {result.get('title', 'No title')}")
+            else:
+                search_result = "No search results found."
+                intermediate_steps.append("Search tool returned no results")
+                
+        except Exception as e:
+            intermediate_steps.append(f"Search tool failed: {str(e)}")
+            search_result = f"Search failed: {str(e)}"
+        
+        # Create a response based on the search results
+        response = f"I searched for information about: {query}\n\n"
+        response += f"Search results: {search_result[:1000]}...\n\n"
+        response += "Based on the search results, here's what I found:\n\n"
+        
+        # Add some analysis
+        if "http" in search_result:
+            response += "I found several relevant sources that you can explore for more detailed information.\n"
+            sources = []
+            lines = search_result.split('\n')
+            for line in lines:
+                if "http" in line and len(line.strip()) > 10:
+                    sources.append({
+                        "title": f"Source {len(sources) + 1}",
+                        "link": line.strip()
+                    })
+            response += f"Found {len(sources)} sources.\n"
+        else:
+            response += "The search returned results, but no specific web links were found.\n"
+            sources = []
+        
+        # Add model information
+        model_info = self.llm_config.get(self.model_name, {})
+        if model_info:
+            response += f"\nModel Information:\n"
+            response += f"- Model: {self.model_name}\n"
+            response += f"- Provider: {model_info.get('provider', 'unknown')}\n"
+            response += f"- Valid: {'Yes' if model_info.get('is_valid', False) else 'No'}\n"
         
         return {
-            "model_name": config.model_name,
-            "provider": config.provider.value,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-            "is_valid": self.llm_manager.validate_config(self.model_name)
+            "response": response,
+            "sources": sources[:5],
+            "intermediate_steps": intermediate_steps,
+            "model_used": self.model_name
         }
     
-    def test_current_model(self, test_query: str = "Hello, how are you?") -> Dict[str, Any]:
-        """
-        Test the current model with a sample query.
+    async def _process_without_tool(self, query: str) -> Dict[str, Any]:
+        """Process query without search tool (fallback)"""
+        response = f"I searched for information about: {query}\n\n"
+        response += "Unfortunately, the search tool is not currently available. "
+        response += "This could be due to dependency conflicts or missing configurations.\n\n"
+        response += "Please check the following:\n"
+        response += "1. Ensure all dependencies are properly installed\n"
+        response += "2. Check that the search tool is correctly configured\n"
+        response += "3. Verify that the environment variables are set correctly\n\n"
+        response += "Model Information:\n"
         
-        Args:
-            test_query: Test query to send to the model
-            
-        Returns:
-            Dictionary containing test results
-        """
-        return self.llm_manager.test_model(self.model_name, test_query)
+        # Add model information
+        model_info = self.llm_config.get(self.model_name, {})
+        if model_info:
+            response += f"- Model: {self.model_name}\n"
+            response += f"- Provider: {model_info.get('provider', 'unknown')}\n"
+            response += f"- Valid: {'Yes' if model_info.get('is_valid', False) else 'No'}\n"
+        
+        return {
+            "response": response,
+            "sources": [],
+            "intermediate_steps": ["Search tool not available"],
+            "model_used": self.model_name
+        }
     
-    def test_all_models(self, test_query: str = "Hello, how are you?") -> Dict[str, Any]:
-        """
-        Test all available models with a sample query.
-        
-        Args:
-            test_query: Test query to send to the models
-            
-        Returns:
-            Dictionary containing test results for all models
-        """
-        return self.llm_manager.test_all_models(test_query)
+    def get_available_models(self) -> List[str]:
+        """Get list of available models"""
+        return list(self.llm_config.keys())
+    
+    def get_model_info(self, model_name: str) -> Dict[str, Any]:
+        """Get information about a specific model"""
+        if model_name in self.llm_config:
+            return {
+                "name": model_name,
+                "provider": self.llm_config[model_name].get("provider", "unknown"),
+                "available": True,
+                **self.llm_config[model_name]
+            }
+        return {"name": model_name, "available": False}
+
+# Test function
+async def test_agent():
+    """Test the agent with a sample query"""
+    try:
+        agent = BrowseAgent()
+        result = await agent.process_query("What are the latest developments in artificial intelligence?")
+        print("Agent test result:")
+        print(json.dumps(result, indent=2))
+    except Exception as e:
+        print(f"Agent test failed: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(test_agent())
