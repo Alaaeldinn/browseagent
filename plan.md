@@ -1,102 +1,179 @@
-# BrowseAgent Development Plan
+# BrowseAgent Development Plan (LangChain Agent Level 2)
 
 ## Project Overview
-BrowseAgent is an AI-powered research agent that uses tool calling to perform semantic search between user queries and results from a custom search tool. It helps users turn any query into structured insights using LLM reasoning with automated search capabilities.
-
-## Architecture Overview
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   User Query    │────▶│   AI Agent       │────▶│  Tool Calling   │
-└─────────────────┘     │  (Level 2)       │     │   (Search Tool) │
-                         └──────────────────┘     └─────────────────┘
-                                ▲
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │  RAG Semantic    │
-                       │  Search & Synth. │
-                       └──────────────────┘
-```
+BrowseAgent is an AI-powered research agent built as a LangChain Agent Level 2 (Tool Calling) that helps users conduct research efficiently by:
+1. Taking user queries
+2. Using LLMs to extract and optimize keywords
+3. Using LangChain's agent framework to call custom search tools
+4. Applying semantic search to filter and rank results (without vector database storage)
+5. Synthesizing results into structured insights
 
 ## Technology Stack
-- **Frontend**: Next.js, React, Tailwind CSS v4, shadcn/ui, ESLint 9
+- **Frontend**: FastHTML
 - **Backend**: FastAPI
-- **Search**: Custom search tool using scrape.py (DDGS)
-- **LLM Integration**: litellm library for multiple LLM support
-- **Agent Framework**: LangChain/LlamaIndex for tool calling implementation
+- **AI Framework**: LangChain (Agent Level 2 - Tool Calling)
+- **LLM Integration**: LiteLLM for multiple LLM support
+- **Search Tool**: Custom LangChain tool based on scrape.py (DDGS)
+- **Semantic Search**: In-memory similarity matching using embeddings
+- **Testing**: Unit tests for business logic
 
 ## Development Phases
 
-### Phase 1: Project Setup & Foundation
-- [ ] Initialize Git repository with proper .gitignore
-- [ ] Set up project structure with separate frontend and backend directories
-- [ ] Initialize Next.js frontend project
-- [ ] Set up FastAPI backend project
-- [ ] Configure Tailwind CSS v4 and shadcn/ui
-- [ ] Set up ESLint 9 configuration
-- [ ] Create basic project documentation
-- [ ] Install necessary dependencies (langchain, llama-index, etc.)
+### Phase 1: Project Setup & LangChain Foundation
+- [ ] Initialize project structure
+- [ ] Set up virtual environment and dependencies (FastAPI, FastHTML, LangChain, LiteLLM, sentence-transformers)
+- [ ] Configure FastAPI backend
+- [ ] Set up FastHTML frontend
+- [ ] Implement basic routing
+- [ ] Set up Git with descriptive commit messages
+- [ ] Create LangChain agent initialization
 
-### Phase 2: Backend Development - Tool Implementation
-- [ ] Refactor scrape.py to create a proper search tool class
-- [ ] Implement tool registration for the search functionality
-- [ ] Create tool schema and interface for LLM tool calling
-- [ ] Set up litellm for multiple LLM provider support
-- [ ] Implement API token management system
-- [ ] Create tool execution endpoint
-- [ ] Add proper error handling and logging for tool execution
+### Phase 2: Custom Search Tool Development
+- [ ] Refactor scrape.py into a proper LangChain tool
+  - Create `DDGSSearchTool` class inheriting from `BaseTool`
+  - Implement `_run` and `_arun` methods
+  - Add tool description and parameters
+- [ ] Integrate custom search tool with LangChain agent
+- [ ] Test tool functionality independently
 
-### Phase 3: Backend Development - AI Agent Core
-- [ ] Implement Level 2 AI agent with tool calling capability
-- [ ] Create agent prompt template for research tasks
-- [ ] Implement RAG semantic search logic between query and results
-- [ ] Add result synthesis functionality
-- [ ] Create agent reasoning loop
-- [ ] Implement conversation history management
-- [ ] Add agent response formatting
+### Phase 3: Semantic Search Implementation
+- [ ] Create internal semantic search function (langchain)
+  - Initialize embedding model (e.g., sentence-transformers)
+  - Implement query embedding generation
+  - Create function to embed search results
+  - Implement similarity scoring and ranking
+  - Return top 5 most relevant results
+- [ ] Integrate semantic search into the agent workflow
+- [ ] Test semantic search accuracy
 
-### Phase 4: Frontend Development
-- [ ] Create responsive UI layout with warm color scheme
-- [ ] Design and implement query input interface
-- [ ] Create agent response display component
-- [ ] Implement loading states and error handling
-- [ ] Add LLM provider selection UI
-- [ ] Create API token input form
-- [ ] Design browser-inspired UI elements
-- [ ] Add conversation history display
+### Phase 4: LangChain Agent Implementation
+- [ ] Set up LangChain Agent with tool calling capabilities
+- [ ] Create agent with custom search tool
+- [ ] Implement prompt engineering for research tasks
+- [ ] Add memory/context management
+- [ ] Test agent with various queries
 
-### Phase 5: Integration & Testing
-- [ ] Connect frontend to backend APIs
-- [ ] Implement end-to-end agent interaction flow
-- [ ] Add unit tests for business logic and agent core
-- [ ] Create integration tests for tool calling
-- [ ] Implement proper data validation
-- [ ] Add performance optimizations
+### Phase 5: LLM Integration & Configuration
+- [ ] Set up LiteLLM integration for multiple LLMs
+- [ ] Create API key management system
+- [ ] Configure agent to use different LLMs
+- [ ] Implement LLM selection logic
+- [ ] Test agent with different LLM backends
 
-### Phase 6: Polish & Deployment
-- [ ] Finalize UI/UX with warm color scheme
-- [ ] Add responsive design improvements
-- [ ] Create deployment configuration
-- [ ] Set up CI/CD pipeline
-- [ ] Add documentation for users and developers
-- [ ] Prepare for production deployment
+### Phase 6: Frontend Implementation
+- [ ] Create user query input interface
+- [ ] Design results display with warmer color scheme
+- [ ] Implement agent interaction flow
+- [ ] Add LLM selection interface
+- [ ] Style with browser/AI browser inspiration
+- [ ] Add loading states and error handling
+
+### Phase 7: Testing & Quality Assurance
+- [ ] Write unit tests for business logic
+- [ ] Test agent tool calling functionality
+- [ ] Test search tool integration
+- [ ] Test semantic search accuracy
+- [ ] Add integration tests for complete flow
+- [ ] Performance testing
+
+### Phase 8: Deployment & Polish
+- [ ] Set up environment configurations
+- [ ] Implement proper logging
+- [ ] Add documentation
+- [ ] Final UI polish
+- [ ] Deployment preparation
+
+## Key Components to Develop
+
+### LangChain Agent Components
+1. **Custom Search Tool**
+   ```python
+   class DDGSSearchTool(BaseTool):
+       name = "ddgs_search"
+       description = "Useful for searching the web for current information"
+       
+       def _run(self, query: str) -> str:
+           # Implementation using DDGS
+           pass
+       
+       def _arun(self, query: str) -> str:
+           # Async implementation
+           pass
+   ```
+
+2. **Semantic Search Function**
+   ```python
+   class SemanticSearch:
+       def __init__(self, embedding_model="all-MiniLM-L6-v2"):
+           self.embedding_model = SentenceTransformer(embedding_model)
+       
+       def rank_results(self, query: str, search_results: List[Dict]) -> List[Dict]:
+           # Generate query embedding
+           # Embed search results
+           # Calculate similarities
+           # Return top 5 results
+           pass
+   ```
+
+3. **Agent Configuration**
+   ```python
+   tools = [DDGSSearchTool()]
+   semantic_search = SemanticSearch()
+   agent = create_openai_tools_agent(
+       llm=llm,
+       tools=tools,
+       prompt=prompt_template
+   )
+   ```
+
+4. **Agent Executor**
+   ```python
+   agent_executor = AgentExecutor(
+       agent=agent,
+       tools=tools,
+       verbose=True,
+       max_iterations=5
+   )
+   ```
+
+### Backend Components
+1. **API Endpoints**
+   - `/query` - Process user queries through agent
+   - `/llms` - List available LLMs
+   - `/health` - Health check endpoint
+
+2. **Agent Service**
+   - Initialize and configure LangChain agent
+   - Handle query processing
+   - Manage tool execution
+   - Apply semantic search to results
+
+### Frontend Components
+1. **Query Interface**
+   - Text input for user queries
+   - LLM selection dropdown
+   - Submit button
+
+2. **Results Display**
+   - Show agent reasoning process
+   - Display search results
+   - Display semantic search filtering
+   - Display final synthesized response
+   - Loading indicators
 
 ## Open Questions
-1. Which specific LLM providers do you want to prioritize for initial integration?
-2. Do you have preferences for the warm color palette (specific colors or color ranges)?
-3. What level of user authentication do you need for API token management?
-4. Do you need user account management to save API tokens and preferences?
-5. Any specific hosting preferences for deployment?
+1. Which embedding model should we use for semantic search?
+2. Should we implement caching for embeddings to improve performance?
+3. How should we handle the semantic search threshold for relevance?
+4. Which specific LLMs should we prioritize for integration?
+5. Should we implement user authentication for API key management?
+6. What's the target deployment environment?
 
-## Git Commit Guidelines
-- Use descriptive commit messages that clearly explain the change
-- Follow conventional commit format: type(scope): description
-- Examples:
-  - feat(agent): implement Level 2 AI agent with tool calling
-  - feat(tool): create search tool class for DDGS integration
-  - fix(agent): resolve RAG semantic search issues
-  - test(unit): add tests for agent reasoning logic
-  - docs: update project documentation
-
-## Next Steps
-Once you approve this plan, we'll begin with Phase 1: Project Setup & Foundation. We'll start by initializing the project structure and setting up the basic Next.js and FastAPI applications.
+## Success Metrics
+- Functional LangChain agent with tool calling
+- Custom search tool properly integrated
+- Semantic search functionality working without vector database
+- Support for multiple LLMs via LiteLLM
+- Comprehensive test coverage
+- Clean, intuitive UI with warmer tones
+- Proper error handling and logging
