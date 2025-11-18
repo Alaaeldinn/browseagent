@@ -1,55 +1,67 @@
 # BrowseAgent
 
-BrowseAgent is a  AI research agent designed to search, browse, and synthesize information from the web. 
+BrowseAgent is an AI research agent (Level 2) designed to search, browse, and synthesize information from the web.
 
 It helps you turn any query into structured insights using LLM reasoning and automated search tools.
 
-help me think through time how to break this into iterative pieces , todos list and write a plane.md that have phases and todoslist only
+## Features
 
-browseagent is ai agent level 2 applying tool calling 
+- Query processing with keyword extraction
+- Tool calling functionality using LangChain
+- Web search via DuckDuckGo with semantic result ranking
+- Support for multiple LLM providers via LiteLLM
+- Simple, practical UI with intentional color scheme
+- FastAPI backend with FastHTML frontend
 
-Requirements:
-	the user enters quey 
-    the llm extract the best words from the query 
-    the llm making tool calling to the search tool with the best keywords
-        the search tool :
-            results = ddgs cutsom search function 
-            semantic results = seamantic search similarity(query , results) 
-            final results = top_5 (semantic results)
-    llm synthesize final results 
-    the user can select various llm via litellm 
-    the ui is too simple , no complex patterns or coding 
-    write requirements.txt for the project 
-    imports the libs correctly is a must 
+## Requirements
 
-rules: 
-    no complex coding or patterns 
+- Python 3.8+
+- API keys for LLM providers (optional, for full functionality)
 
-ddgs custom search function: 
-    def search_ddgs(query, max_results=200) -> list:
-    results = DDGS().text(
-        query, 
-        max_results=max_results,
-        region="wt-wt",
-        safesearch="off",
-        timelimit='y'
-    )
-    return results
+## Setup
 
-Desgin:
-	minimal functional , practical 
-	intentional use of color 
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd browseagent
+   ```
 
-Frontend : 	
-	fasthtml
-    
-Backend:
-	Fastapi 
-    langchain
-    sentence transformers 
-    litellm
-    DDGS
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-check off iterms in the plan as we accomplish them as todolist , if you have open questions that require my input , add those in the plan as well , we will excute phase by phase under my command
+3. Set up environment variables (optional):
+   ```bash
+   export OPENAI_API_KEY="your-openai-api-key"
+   export ANTHROPIC_API_KEY="your-anthropic-api-key"
+   # etc. for other providers you plan to use
+   ```
 
+## Usage
 
+1. Start the backend server:
+   ```bash
+   uvicorn app:app --host 0.0.0.0 --port 8000
+   ```
+
+2. In a separate terminal, start the frontend:
+   ```bash
+   python frontend.py
+   ```
+
+3. Access the application in your browser at `http://localhost:5000`
+
+## API Endpoints
+
+- `POST /query` - Process a query with the BrowseAgent
+- `GET /health` - Health check endpoint
+- `GET /providers` - List available LLM providers
+
+## Architecture
+
+BrowseAgent uses the following components:
+- Backend: FastAPI server with LangChain agent
+- Frontend: FastHTML with Tailwind CSS
+- Search: DuckDuckGo Search with semantic ranking using Sentence Transformers
+- LLM: Multiple providers supported via LiteLLM
