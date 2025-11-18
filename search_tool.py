@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-import DDGS
+from ddgs import DDGS
 from sentence_transformers import util
 from transformers import AutoTokenizer, AutoModel
 import torch
@@ -27,22 +27,19 @@ def semantic_search_similarity(query: str, results: List[Dict[str, Any]]) -> Lis
     if not results:
         return []
     
-    # Initialize the model and tokenizer
-    model_name = "all-MiniLM-L6-v2"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+    from sentence_transformers import SentenceTransformer
+    
+    # Initialize the sentence transformer model
+    model = SentenceTransformer('all-MiniLM-L6-v2')
     
     # Encode the query
-    query_embedding = model(**tokenizer(query, return_tensors="pt", padding=True, truncation=True))
-    query_embedding = query_embedding.last_hidden_state.mean(dim=1)
+    query_embedding = model.encode([query])
     
     # Prepare result texts for encoding
     result_texts = [result.get('body', '') or result.get('snippet', '') or result.get('title', '') for result in results]
     
     # Encode all result texts
-    inputs = tokenizer(result_texts, return_tensors="pt", padding=True, truncation=True)
-    result_embeddings = model(**inputs)
-    result_embeddings = result_embeddings.last_hidden_state.mean(dim=1)
+    result_embeddings = model.encode(result_texts)
     
     # Calculate cosine similarity between query and results
     similarities = util.cos_sim(query_embedding, result_embeddings)[0]
@@ -68,9 +65,9 @@ class SearchToolInput(BaseModel):
 
 
 class SearchTool(BaseTool):
-    name = "search_tool"
-    description = "Useful for searching the web for current information on any topic"
-    args_schema = SearchToolInput
+    name: str = "search_tool"
+    description: str = "Useful for searching the web for current information on any topic"
+    args_schema: type = SearchToolInput
 
     def _run(self, query: str) -> str:
         """
