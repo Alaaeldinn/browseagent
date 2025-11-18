@@ -1,43 +1,44 @@
 # BrowseAgent
 
-BrowseAgent is a lightweight AI-powered research agent designed to search, browse, and synthesize information from the web.  
-It helps you turn any query into structured insights using LLM reasoning + automated search tools.
-lets build a web app AI Research Agent to assist users in conducting research efficiently. It takes a user query, uses an LLM to extract and optimize keywords, searches for relevant information using a custom search tool, and synthesizes the results into a coherent response.
+BrowseAgent is a  AI research agent designed to search, browse, and synthesize information from the web. 
 
-use whatever libraries for the logic core as not everything is covered 
-help me think through time how to break this into iterative pieces and write a plane.md 
+It helps you turn any query into structured insights using LLM reasoning and automated search tools.
 
+help me think through time how to break this into iterative pieces , todos list and write a plane.md that have phases and todoslist only
 
-app logic behavior:
-    user enters query 
-    ai agent refine query and suggest the best keywords to search with 
-    ai agent tool calling the custom search tool 
-    add the the top 5 results to the context 
-    generate response 
-    
-User Query --> LLm keyword Extraction ----> rag semantic search + custom search tool  ---> embed top 5 topics to context ---> llm response
+browseagent is ai agent level 2 applying tool calling 
 
-Requirements 
-	provide multiple llms using litellm lib
-	allow user to use these multiple by using their api token
-	add unit tests for busniess logic 
-    test every phase after implementation 
-    building ai agent level 2 by using langchain
-	use git and use description commits 
+Requirements:
+	the user enters quey 
+    the llm extract the best words from the query 
+    the llm making tool calling to the search tool with the best keywords
+        the search tool :
+            results = ddgs cutsom search function 
+            semantic results = seamantic search similarity(query , results) 
+            final results = top_5 (semantic results)
+    llm synthesize final results 
+    the user can select various llm via litellm 
+    the ui is too simple , no complex patterns or coding 
+    write requirements.txt for the project 
+    imports the libs correctly is a must 
 
-additional: 
-    custom search tool : (langchain)
-        use the snippet code in scrape.py as custom search tool 
-        get the results 
-        apply rag semantic search ( query , results )
-        return top 5 topics 
+rules: 
+    no complex coding or patterns 
+
+ddgs custom search function: 
+    def search_ddgs(query, max_results=200) -> list:
+    results = DDGS().text(
+        query, 
+        max_results=max_results,
+        region="wt-wt",
+        safesearch="off",
+        timelimit='y'
+    )
+    return results
 
 Desgin:
-
 	minimal functional , practical 
 	intentional use of color 
-	waremer tones 
-	inspired by browser and ai browsers
 
 Frontend : 	
 	fasthtml
@@ -45,6 +46,9 @@ Frontend :
 Backend:
 	Fastapi 
     langchain
+    sentence transformers 
+    litellm
+    DDGS
 
 check off iterms in the plan as we accomplish them as todolist , if you have open questions that require my input , add those in the plan as well , we will excute phase by phase under my command
 

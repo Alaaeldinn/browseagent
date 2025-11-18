@@ -1,0 +1,9 @@
+fastapi
+python-fasthtml
+langchain
+langchain-core
+sentence-transformers
+litellm
+DDGS
+pydantic
+uvicorn
