@@ -24,7 +24,7 @@ from langchain_openai import ChatOpenAI
 
 def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
     """
-    Get an LLM instance using LiteLLM through ChatOpenAI
+    Get an LLM instance using LiteLLM
     """
     # For LiteLLM, we don't necessarily need an API key if using it as a proxy
     # However, we need the appropriate API key for the selected provider in the environment
@@ -48,8 +48,26 @@ def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
     elif model.startswith("groq/"):
         if "GROQ_API_KEY" not in os.environ or not os.environ["GROQ_API_KEY"]:
             raise ValueError("GROQ_API_KEY environment variable is required for Groq models")
+    elif model.startswith("openrouter/"):
+        if "OPENROUTER_API_KEY" not in os.environ or not os.environ["OPENROUTER_API_KEY"]:
+            raise ValueError("OPENROUTER_API_KEY environment variable is required for OpenRouter models")
 
-    # Create ChatOpenAI instance with the specified model
+        # For OpenRouter models, configure the environment appropriately
+        os.environ["OPENAI_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
+        litellm.api_base = "https://openrouter.ai/api/v1"
+
+    # For OpenRouter models we should use a different approach since the model name format is different
+    if model.startswith("openrouter/"):
+        # Extract the actual OpenRouter model name (without the openrouter/ prefix)
+        openrouter_model = model.replace("openrouter/", "")
+        return ChatOpenAI(
+            model=openrouter_model,
+            temperature=0.1,
+            openai_api_base="https://openrouter.ai/api/v1",
+            openai_api_key=os.environ["OPENROUTER_API_KEY"]
+        )
+
+    # For non-OpenRouter models, create ChatOpenAI instance with the specified model
     # LiteLLM supports multiple providers via the model parameter (e.g., "openai/gpt-3.5-turbo", "anthropic/claude-3", etc.)
     return ChatOpenAI(
         model=model,
@@ -147,7 +165,18 @@ class BrowseAgent:
             # Run the query through the agent executor
             result = self.agent_executor.invoke({"input": keywords})
 
-            return result
+            # If result is a dict, extract the output part
+            if isinstance(result, dict):
+                if "output" in result:
+                    return str(result["output"])
+                elif "response" in result:
+                    return str(result["response"])
+                else:
+                    # If we can't find a clear output, return the string representation
+                    return str(result)
+            else:
+                # If result is not a dict, return as string
+                return str(result)
         except Exception as e:
             # More detailed error handling for different types of errors
             error_msg = str(e)
@@ -155,6 +184,9 @@ class BrowseAgent:
                 # Handle API key issues by using the search tool directly
                 search_result = self.search_tool._run(keywords)
                 return f"API key issue encountered. Search results: {search_result}"
+            elif "not a valid model ID" in error_msg:
+                # Handle model name format issues
+                return f"Model name format error. Please check model name format. Error: {str(e)}"
             else:
                 return f"Error occurred during agent execution: {str(e)}"
 

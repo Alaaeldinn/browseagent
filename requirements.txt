@@ -5,6 +5,7 @@ langchain-community==0.2.10
 langchain-core
 langchain-experimental
 langchain-openai
+langsmith
 sentence-transformers
 litellm
 DDGS
