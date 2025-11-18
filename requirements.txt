@@ -1,7 +1,10 @@
 fastapi
 python-fasthtml
-langchain
+langchain==0.2.10 
+langchain-community==0.2.10
 langchain-core
+langchain-experimental
+langchain-openai
 sentence-transformers
 litellm
 DDGS
