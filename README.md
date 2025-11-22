@@ -1,67 +1,106 @@
-# BrowseAgent
+# BrowseAgent: AI-Powered Search Assistant
 
-BrowseAgent is an AI research agent (Level 2) designed to search, browse, and synthesize information from the web.
+## Project Overview
 
-It helps you turn any query into structured insights using LLM reasoning and automated search tools.
+BrowseAgent is an intelligent search assistant that leverages large language models to provide contextual, relevant search results. The system extracts optimal search keywords from user prompts, performs searches, ranks results using embedding similarity, and generates comprehensive responses based on the top results.
 
-## Features
+This project is being developed as a Minimum Viable Product (MVP) to establish a robust, scalable, and user-friendly core platform.
 
-- Query processing with keyword extraction
-- Tool calling functionality using LangChain
-- Web search via DuckDuckGo with semantic result ranking
-- Support for multiple LLM providers via LiteLLM
-- Simple, practical UI with intentional color scheme
-- FastAPI backend with FastHTML frontend
+## Guiding Principles for Development
 
-## Requirements
+This document serves as the primary guide for the AI coding agent. To ensure the highest quality and modern implementation, the agent is encouraged to:
 
-- Python 3.8+
-- API keys for LLM providers (optional, for full functionality)
+-   **Actively Research:** Proactively search for the latest documentation, tutorials, and best practices for all technologies used (e.g., FastAPI, LangChain, SearXNG, OpenRouter API).
+-   **Seek Optimal Solutions:** Evaluate different libraries or approaches before implementation to choose the most efficient and maintainable one.
+-   **Clarify Ambiguities:** If any requirement in this document or the resulting `plan.md` is unclear, seek clarification or propose a well-reasoned solution.
 
-## Setup
+## Current Architecture
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd browseagent
-   ```
+### Flow
+1.  User enters a prompt.
+2.  LLM extracts optimal search keywords.
+3.  Agent performs search via a tool call.
+4.  Results (body, metadata) are collected.
+5.  Embedding similarity scoring is applied to rank results.
+6.  Top 5 results are extracted.
+7.  These results are used as context to generate a final response.
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Technology Stack
+-   **LangChain:** For LLM orchestration and tool management.
+-   **FastAPI:** For the high-performance API backend.
+-   **FastHTML:** For the initial frontend interface (to be replaced).
 
-3. Set up environment variables (optional):
-   ```bash
-   export OPENAI_API_KEY="your-openai-api-key"
-   export ANTHROPIC_API_KEY="your-anthropic-api-key"
-   # etc. for other providers you plan to use
-   ```
+## MVP Requirements
 
-## Usage
+### Core Improvements
+1.  **Search Infrastructure**
+    -   Replace the current search tool with **SearXNG**, an open-source metasearch engine, to gain control and privacy.
+    -   Configure and deploy SearXNG for optimal result quality.
 
-1. Start the backend server:
-   ```bash
-   uvicorn app:app --host 0.0.0.0 --port 8000
-   ```
+2.  **Model Integration**
+    -   Implement **OpenRouter** integration.
+    -   Allow users to provide their own OpenRouter API key.
+    -   Enable users to select a model from a curated list of **free models available on OpenRouter** for the MVP.
 
-2. In a separate terminal, start the frontend:
-   ```bash
-   python frontend.py
-   ```
+3.  **Quality Assurance**
+    -   Develop comprehensive unit tests for all core API endpoints.
+    -   Implement integration tests for the complete search-and-response flow.
 
-3. Access the application in your browser at `http://localhost:5000`
+4.  **User Interface**
+    -   Design and implement a modern, **ChatGPT-like conversational interface**.
+    -   Improve user experience with real-time feedback, streaming responses, and clear result visualization.
 
-## API Endpoints
+5.  **Deployment**
+    -   Create a production-ready **Docker image** for the API.
+    -   Ensure all dependencies from the virtual environment are correctly managed within the Docker container.
 
-- `POST /query` - Process a query with the BrowseAgent
-- `GET /health` - Health check endpoint
-- `GET /providers` - List available LLM providers
+### Future Features (Post-MVP)
+-   **Deep Research:** Implement multi-step reasoning for complex, multi-faceted queries.
+-   **Deep Think:** Enhanced analytical capabilities using advanced prompting techniques.
+-   **Scientific Research Mode:** Specialized search focused exclusively on academic papers, journals, and scholarly databases.
+-   **Real-time News Integration:** Focused search and synthesis of current news from various sources.
 
-## Architecture
+## Development Approach (Phased)
 
-BrowseAgent uses the following components:
-- Backend: FastAPI server with LangChain agent
-- Frontend: FastHTML with Tailwind CSS
-- Search: DuckDuckGo Search with semantic ranking using Sentence Transformers
-- LLM: Multiple providers supported via LiteLLM
+The project will be developed iteratively, broken down into logical phases. The `plan.md` will detail the specific tasks within each phase.
+
+*   **Phase 1: Infrastructure & Core API**
+    *   Integrate and configure SearXNG as the primary search tool.
+    *   Set up OpenRouter/LiteLLM for model management.
+    *   Restructure the core API to handle user-provided API keys and model selection.
+
+*   **Phase 2: User Experience & Core Logic**
+    *   Implement the logic for users to input and securely store their OpenRouter API key.
+    *   Create the model selection interface (frontend and backend).
+    *   Update the search flow to use the user's chosen model and API key.
+
+*   **Phase 3: Quality & Testing**
+    *   Write and execute unit tests for all new and existing API functionality.
+    *   Develop integration tests for the end-to-end user journey.
+    *   Refactor code for clarity and performance based on test results.
+
+*   **Phase 4: UI/UX Overhaul**
+    *   Design the new ChatGPT-like UI.
+    *   Implement the frontend, replacing FastHTML with a modern framework (e.g., Typescript, React, Vue, or Svelte)(the easiest , the     fastest).
+    *   Connect the frontend to the backend API, ensuring smooth data flow and state management.
+
+*   **Phase 5: Deployment & Documentation**
+    *   Write a robust `Dockerfile` and `docker-compose.yml` for easy deployment.
+    *   Create comprehensive API documentation (e.g., with Swagger/OpenAPI).
+    *   Finalize the project README and user guides.
+
+## MVP Success Criteria
+
+-   A user can sign up, add their OpenRouter API key, and select a free model.
+-   Search queries are processed using SearXNG and return relevant, ranked results.
+-   The application is fully tested with a target of >90% code coverage for critical paths.
+-   The UI provides an intuitive, responsive, ChatGPT-like conversational experience.
+-   The entire application can be reliably deployed to a production environment using Docker.
+
+## Next Steps
+
+This README will serve as the foundation for creating a detailed `plan.md`. That plan will break down each phase into granular, actionable tasks for the coding agent to execute.
+
+---
+
+*This document is a living guide and will be updated as the project evolves and new requirements emerge.*

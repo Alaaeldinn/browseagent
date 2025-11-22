@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from search_tool import SearchTool
+from search_tool import SearXNGSearchTool, OldSearchTool
 
 # Import LiteLLM wrapper
 import litellm
@@ -24,7 +24,7 @@ from langchain_openai import ChatOpenAI
 
 def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
     """
-    Get an LLM instance using LiteLLM
+    Get an LLM instance using LiteLLM with fallback mechanisms
     """
     # For LiteLLM, we don't necessarily need an API key if using it as a proxy
     # However, we need the appropriate API key for the selected provider in the environment
@@ -60,23 +60,59 @@ def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
     if model.startswith("openrouter/"):
         # Extract the actual OpenRouter model name (without the openrouter/ prefix)
         openrouter_model = model.replace("openrouter/", "")
-        return ChatOpenAI(
-            model=openrouter_model,
-            temperature=0.1,
-            openai_api_base="https://openrouter.ai/api/v1",
-            openai_api_key=os.environ["OPENROUTER_API_KEY"]
-        )
+        try:
+            return ChatOpenAI(
+                model=openrouter_model,
+                temperature=0.1,
+                openai_api_base="https://openrouter.ai/api/v1",
+                openai_api_key=os.environ["OPENROUTER_API_KEY"],
+                default_headers={
+                    "HTTP-Referer": os.getenv("YOUR_SITE_URL", "https://browseagent.example"),
+                    "X-Title": os.getenv("YOUR_APP_NAME", "BrowseAgent"),
+                },
+                request_timeout=30
+            )
+        except Exception as e:
+            # If OpenRouter model fails, try a fallback model
+            print(f"Error initializing OpenRouter model {openrouter_model}: {e}")
+            try:
+                # Fallback to a known free model
+                fallback_model = "google/gemma-7b-it"  # This is typically free
+                return ChatOpenAI(
+                    model=fallback_model,
+                    temperature=0.1,
+                    openai_api_base="https://openrouter.ai/api/v1",
+                    openai_api_key=os.environ["OPENROUTER_API_KEY"],
+                    default_headers={
+                        "HTTP-Referer": os.getenv("YOUR_SITE_URL", "https://browseagent.example"),
+                        "X-Title": os.getenv("YOUR_APP_NAME", "BrowseAgent"),
+                    },
+                    request_timeout=30
+                )
+            except Exception:
+                # If fallback also fails, raise the original error
+                raise e
 
     # For non-OpenRouter models, create ChatOpenAI instance with the specified model
     # LiteLLM supports multiple providers via the model parameter (e.g., "openai/gpt-3.5-turbo", "anthropic/claude-3", etc.)
-    return ChatOpenAI(
-        model=model,
-        temperature=0.1
-    )
+    try:
+        return ChatOpenAI(
+            model=model,
+            temperature=0.1,
+            request_timeout=30
+        )
+    except Exception as e:
+        print(f"Error initializing model {model}: {e}")
+        # Fallback to a default model
+        return ChatOpenAI(
+            model="gpt-3.5-turbo",  # Default fallback
+            temperature=0.1,
+            request_timeout=30
+        )
 
 
 class BrowseAgent:
-    def __init__(self, llm_provider: str = "openai/gpt-3.5-turbo"):
+    def __init__(self, llm_provider: str = "openai/gpt-3.5-turbo", searx_host: str = "https://searx.space", use_searxng: bool = True):
         """
         Initialize the BrowseAgent with a specific LLM provider
         """
@@ -86,8 +122,11 @@ class BrowseAgent:
         # Create a custom LLM that uses LiteLLM
         self.llm = get_llm_instance(model=llm_provider)
 
-        # Initialize the search tool
-        self.search_tool = SearchTool()
+        # Initialize the search tool based on configuration
+        if use_searxng:
+            self.search_tool = SearXNGSearchTool(searx_host=searx_host)
+        else:
+            self.search_tool = OldSearchTool()  # Fallback to old tool
 
         # Create tools list for the agent
         self.tools = [
@@ -156,7 +195,7 @@ class BrowseAgent:
 
     def run_query(self, query: str) -> str:
         """
-        Run a query through the agent
+        Run a query through the agent with enhanced error handling and fallbacks
         """
         try:
             # Extract keywords from the query
@@ -180,26 +219,92 @@ class BrowseAgent:
         except Exception as e:
             # More detailed error handling for different types of errors
             error_msg = str(e)
+            print(f"Error in agent execution: {error_msg}")  # For debugging
+
             if "api_key" in error_msg.lower() or "401" in error_msg or "API key" in error_msg:
                 # Handle API key issues by using the search tool directly
-                search_result = self.search_tool._run(keywords)
-                return f"API key issue encountered. Search results: {search_result}"
-            elif "not a valid model ID" in error_msg:
-                # Handle model name format issues
-                return f"Model name format error. Please check model name format. Error: {str(e)}"
+                try:
+                    search_result = self.search_tool._run(keywords)
+                    return f"API key issue encountered. Search results: {search_result}"
+                except Exception as search_error:
+                    return f"API key issue encountered and search also failed: {str(search_error)}"
+            elif "not a valid model ID" in error_msg or "model" in error_msg.lower():
+                # Handle model name format issues with fallback to default model
+                try:
+                    # Try to reinitialize with a default model
+                    original_llm = self.llm
+                    self.llm = get_llm_instance(model="openai/gpt-3.5-turbo")
+
+                    # Recreate the agent with the new LLM
+                    prompt = ChatPromptTemplate.from_messages([
+                        ("system", "You are a helpful assistant that can search the web for information."),
+                        ("human", "{input}"),
+                        ("placeholder", "{agent_scratchpad}"),
+                    ])
+
+                    self.agent = create_openai_tools_agent(
+                        llm=self.llm,
+                        tools=self.tools,
+                        prompt=prompt
+                    )
+
+                    self.agent_executor = AgentExecutor(
+                        agent=self.agent,
+                        tools=self.tools,
+                        verbose=True,
+                        handle_parsing_errors=True
+                    )
+
+                    # Retry the query with the fallback model
+                    result = self.agent_executor.invoke({"input": keywords})
+                    if isinstance(result, dict):
+                        if "output" in result:
+                            return str(result["output"])
+                        else:
+                            return str(result)
+                    else:
+                        return str(result)
+                except Exception:
+                    # If all fallbacks fail, return search results directly
+                    search_result = self.search_tool._run(keywords)
+                    return f"Model issue encountered. Using direct search: {search_result}"
+            elif "tool" in error_msg.lower() or "search" in error_msg.lower():
+                # Handle search tool issues
+                return f"Search tool error occurred. Please try again later. Error: {str(e)}"
             else:
-                return f"Error occurred during agent execution: {str(e)}"
+                # For other errors, try to get search results directly
+                try:
+                    search_result = self.search_tool._run(keywords)
+                    return f"Error occurred during agent execution, but here are direct search results: {search_result}"
+                except Exception as search_error:
+                    return f"Error occurred during agent execution: {str(e)}. Search also failed: {str(search_error)}"
 
 
-def process_query_with_agent(query: str, llm_provider: str = "openai/gpt-3.5-turbo") -> Dict[str, Any]:
+def process_query_with_agent(
+    query: str,
+    llm_provider: str = "openai/gpt-3.5-turbo",
+    searx_host: str = "https://searx.space",
+    use_searxng: bool = True
+) -> Dict[str, Any]:
     """
-    Process a query with the BrowseAgent
+    Process a query with the BrowseAgent with error handling
     """
-    agent = BrowseAgent(llm_provider=llm_provider)
-    result = agent.run_query(query)
+    try:
+        agent = BrowseAgent(llm_provider=llm_provider, searx_host=searx_host, use_searxng=use_searxng)
+        result = agent.run_query(query)
 
-    return {
-        "query": query,
-        "llm_provider": llm_provider,
-        "result": result
-    }
+        return {
+            "query": query,
+            "llm_provider": llm_provider,
+            "result": result,
+            "search_engine": "searxng" if use_searxng else "ddgs",
+            "status": "success"
+        }
+    except Exception as e:
+        return {
+            "query": query,
+            "llm_provider": llm_provider,
+            "result": f"Error processing query: {str(e)}",
+            "search_engine": "searxng" if use_searxng else "ddgs",
+            "status": "error"
+        }
