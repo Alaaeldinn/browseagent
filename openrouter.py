@@ -7,6 +7,10 @@ from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class OpenRouterClient:
     """
     A client to interact with the OpenRouter API
@@ -22,36 +26,140 @@ class OpenRouterClient:
             "Content-Type": "application/json"
         }
 
-    def validate_api_key(self) -> bool:
+    def validate_api_key(self) -> Dict[str, Any]:
         """
-        Validate the API key by making a simple request
+        Validate the API key by making a simple request and return detailed information
         """
         if not self.api_key:
-            return False
-        
+            logger.warning("API key validation attempted without API key")
+            return {
+                "valid": False,
+                "message": "API key is required",
+                "details": "No API key provided"
+            }
+
         try:
+            logger.info("Starting API key validation")
+
+            # First, try to get user info to validate the API key
             response = requests.get(
-                f"{self.base_url}/models",
+                f"{self.base_url}/user",
                 headers=self.headers
             )
-            return response.status_code == 200
-        except Exception:
-            return False
+
+            if response.status_code == 200:
+                user_data = response.json()
+                logger.info("API key validation successful via user endpoint")
+                return {
+                    "valid": True,
+                    "message": "API key is valid",
+                    "details": user_data,
+                    "user_info": user_data.get("data", {})
+                }
+            elif response.status_code == 401:
+                logger.warning("API key validation failed - authentication error")
+                return {
+                    "valid": False,
+                    "message": "Invalid API key",
+                    "details": "Authentication failed"
+                }
+            elif response.status_code == 429:
+                logger.info("API key is valid but rate limited")
+                return {
+                    "valid": True,  # Key is valid, just rate limited
+                    "message": "API key valid but rate limited",
+                    "details": "Rate limit exceeded"
+                }
+            else:
+                logger.info(f"User endpoint returned {response.status_code}, trying models endpoint")
+
+                # Try models endpoint as fallback
+                models_response = requests.get(
+                    f"{self.base_url}/models",
+                    headers=self.headers
+                )
+
+                if models_response.status_code == 200:
+                    logger.info("API key validation successful via models endpoint")
+                    return {
+                        "valid": True,
+                        "message": "API key is valid",
+                        "details": "Access to models confirmed"
+                    }
+                else:
+                    logger.warning(f"API key validation failed via models endpoint: {models_response.status_code}")
+                    return {
+                        "valid": False,
+                        "message": f"Invalid API key or access denied: {models_response.status_code}",
+                        "details": models_response.text
+                    }
+
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error during API key validation")
+            return {
+                "valid": False,
+                "message": "Could not connect to OpenRouter API",
+                "details": "Connection error"
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error during API key validation: {str(e)}")
+            return {
+                "valid": False,
+                "message": f"Error validating API key: {str(e)}",
+                "details": str(e)
+            }
+
+    def get_account_balance(self) -> Dict[str, Any]:
+        """
+        Get account balance information
+        """
+        if not self.api_key:
+            return {
+                "success": False,
+                "message": "API key is required"
+            }
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/user/usage",
+                headers=self.headers
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "success": True,
+                    "data": data
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Error retrieving balance: {response.status_code}",
+                    "details": response.text
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Error retrieving balance: {str(e)}"
+            }
 
     def get_available_models(self) -> List[Dict[str, Any]]:
         """
         Get a list of available models from OpenRouter
         """
         try:
+            logger.info("Fetching available models from OpenRouter")
             response = requests.get(
                 f"{self.base_url}/models",
                 headers=self.headers
             )
             response.raise_for_status()
             data = response.json()
+            model_count = len(data.get("data", []))
+            logger.info(f"Successfully fetched {model_count} models from OpenRouter")
             return data.get("data", [])
         except Exception as e:
-            print(f"Error fetching models: {e}")
+            logger.error(f"Error fetching models from OpenRouter: {str(e)}")
             return []
 
     def get_free_models(self) -> List[Dict[str, Any]]:
@@ -59,24 +167,30 @@ class OpenRouterClient:
         Get a list of free models available on OpenRouter
         """
         try:
+            logger.info("Fetching free models from OpenRouter")
             all_models = self.get_available_models()
+
             free_models = [
-                model for model in all_models 
+                model for model in all_models
                 if model.get("pricing", {}).get("prompt", "0").replace("$", "").replace("0", "") == ""
                 or float(model.get("pricing", {}).get("prompt", "0").replace("$", "")) == 0
                 or "free" in model.get("name", "").lower()
             ]
-            
+
             # Let's also include models that are very cheap (under $0.01 per million tokens)
             cheap_models = [
                 model for model in all_models
                 if model not in free_models
                 and float(model.get("pricing", {}).get("prompt", "0").replace("$", "")) <= 0.00001
             ]
-            
+
+            total_free = len(free_models)
+            total_cheap = len(cheap_models)
+            logger.info(f"Found {total_free} free models and {total_cheap} cheap models")
+
             return free_models + cheap_models
         except Exception as e:
-            print(f"Error filtering free models: {e}")
+            logger.error(f"Error filtering free models: {str(e)}")
             return []
 
     def get_model_pricing_info(self, model_id: str) -> Optional[Dict[str, Any]]:
@@ -84,19 +198,23 @@ class OpenRouterClient:
         Get pricing information for a specific model
         """
         try:
+            logger.info(f"Fetching pricing info for model: {model_id}")
             all_models = self.get_available_models()
             for model in all_models:
                 if model.get("id") == model_id:
-                    return {
+                    pricing_info = {
                         "id": model.get("id"),
                         "name": model.get("name"),
                         "pricing": model.get("pricing", {}),
                         "description": model.get("description", ""),
                         "context_length": model.get("context_length", 0)
                     }
+                    logger.info(f"Pricing info found for model: {model_id}")
+                    return pricing_info
+            logger.info(f"No pricing info found for model: {model_id}")
             return None
         except Exception as e:
-            print(f"Error getting model pricing info: {e}")
+            logger.error(f"Error getting pricing info for model {model_id}: {str(e)}")
             return None
 
     def test_model_access(self, model_id: str) -> bool:

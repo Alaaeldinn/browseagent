@@ -1,15 +1,15 @@
-from search_tool import SearchTool
+from search_tool import SearXNGSearchTool, OldSearchTool
 
 def test_search_tool():
     """
     Test the search tool independently
     """
-    tool = SearchTool()
-    
+    tool = SearXNGSearchTool()  # Use the correct class name
+
     # Test with a sample query
     query = "What is the latest AI research in language models?"
     result = tool._run(query)
-    
+
     print(f"Query: {query}")
     print(f"Result: {result}")
 

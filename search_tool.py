@@ -4,6 +4,7 @@ from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 from langchain_community.utilities import SearxSearchWrapper
 import re
+import logging
 
 
 def semantic_search_similarity(query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -38,6 +39,31 @@ def semantic_search_similarity(query: str, results: List[Dict[str, Any]]) -> Lis
     sorted_results = sorted(results, key=lambda x: x.get('similarity_score', 0), reverse=True)
 
     return sorted_results
+
+
+def process_search_results_with_pipeline(query: str, raw_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Process search results using the comprehensive pipeline
+    """
+    from search_result_pipeline import SearchResultProcessor
+
+    processor = SearchResultProcessor()
+    processed_results = processor.process_results(raw_results, query)
+    formatted_output = processor.format_for_llm(processed_results, max_results=5)
+
+    # Convert back to the format expected by the agent
+    final_results = []
+    for result in processed_results[:5]:  # Take top 5
+        final_results.append({
+            "title": result.title,
+            "href": result.url,
+            "body": result.clean_content(),
+            "engine": result.engine,
+            "similarity_score": result.similarity_score,
+            "source_type": result.source_type
+        })
+
+    return final_results
 
 
 def top_5(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -128,12 +154,24 @@ class SearXNGSearchTool(BaseTool):
         Run the SearXNG search tool with the given query
         """
         try:
+            # Validate inputs
+            if not query or not query.strip():
+                return "Error: Query cannot be empty"
+
             # Get optimized engines and categories based on the query
-            optimized_engines, optimized_categories = get_optimized_engines(query)
+            try:
+                optimized_engines, optimized_categories = get_optimized_engines(query)
+            except Exception as e:
+                logging.error(f"Error getting optimized engines for query: {str(e)}")
+                optimized_engines, optimized_categories = (None, ["general"])  # Fallback
 
             # Use optimized configuration if original configuration is not specified
             engines_to_use = self.engines if self.engines else optimized_engines
             categories_to_use = self.categories if self.categories else optimized_categories
+
+            # Validate SearXNG host
+            if not self.searx_host or not self.searx_host.startswith(('http://', 'https://')):
+                return "Error: Invalid SearXNG host configuration"
 
             # Initialize SearXNG search wrapper
             # Note: language parameter might not be supported in all versions
@@ -146,20 +184,39 @@ class SearXNGSearchTool(BaseTool):
             }
 
             # Only add language if it's supported (some versions don't support it)
+            searx_search = None
             try:
                 searx_search = SearxSearchWrapper(**searx_params, language=self.language)
-            except:
+            except Exception:
                 # If language parameter is not supported, create without it
-                searx_search = SearxSearchWrapper(**searx_params)
+                try:
+                    searx_search = SearxSearchWrapper(**searx_params)
+                except Exception as e:
+                    return f"Error initializing SearXNG search wrapper: {str(e)}"
 
             # Get raw results from SearXNG
-            raw_results = searx_search.results(query, num_results=self.k)
+            try:
+                raw_results = searx_search.results(query, num_results=self.k)
+            except Exception as e:
+                logging.error(f"Error getting results from SearXNG: {str(e)}")
+                # Try with minimal parameters as fallback
+                minimal_params = {"searx_host": self.searx_host, "k": self.k}
+                try:
+                    searx_search_fallback = SearxSearchWrapper(**minimal_params)
+                    raw_results = searx_search_fallback.results(query, num_results=min(3, self.k))
+                except Exception:
+                    return "Error: Unable to retrieve search results from SearXNG instance"
 
-            # Apply semantic search similarity to rank results
-            ranked_results = semantic_search_similarity(query, raw_results)
+            # Process results through the comprehensive pipeline
+            try:
+                processed_results = process_search_results_with_pipeline(query, raw_results)
+            except Exception as e:
+                logging.error(f"Error in search result pipeline: {str(e)}")
+                # Fallback to basic processing
+                processed_results = raw_results  # Use raw results if pipeline fails
 
-            # Get top 5 results
-            top_results = top_5(ranked_results)
+            # Get top results (already processed by the pipeline if successful)
+            top_results = processed_results
 
             # Format results for the LLM
             formatted_results = []
@@ -169,13 +226,15 @@ class SearXNGSearchTool(BaseTool):
                     "href": result.get("url", "") or result.get("href", ""),
                     "body": result.get("content", "") or result.get("body", "") or result.get("snippet", ""),
                     "engine": result.get("engine", "unknown"),
-                    "similarity_score": round(result.get("similarity_score", 0), 4)
+                    "similarity_score": round(result.get("similarity_score", 0), 4),
+                    "source_type": result.get("source_type", "unknown")
                 }
                 formatted_results.append(formatted_result)
 
             return str(formatted_results)
 
         except Exception as e:
+            logging.error(f"Unexpected error in SearXNG search tool: {str(e)}")
             return f"Error occurred during SearXNG search: {str(e)}"
 
     def _arun(self, query: str):
@@ -212,14 +271,24 @@ class OldSearchTool(BaseTool):
         Run the old search tool with the given query (for fallback)
         """
         try:
+            # Validate inputs
+            if not query or not query.strip():
+                return "Error: Query cannot be empty"
+
             # Step 1: Perform initial search
-            initial_results = search_ddgs(query, max_results=200)
+            try:
+                initial_results = search_ddgs(query, max_results=200)
+            except Exception as e:
+                logging.error(f"Error in DDGS search: {str(e)}")
+                return f"Error occurred during DuckDuckGo search: {str(e)}"
 
-            # Step 2: Apply semantic search similarity
-            semantic_results = semantic_search_similarity(query, initial_results)
-
-            # Step 3: Get top 5 results
-            final_results = top_5(semantic_results)
+            # Step 2: Process results through the comprehensive pipeline
+            try:
+                final_results = process_search_results_with_pipeline(query, initial_results)
+            except Exception as e:
+                logging.error(f"Error in search result pipeline: {str(e)}")
+                # Fallback to basic processing
+                final_results = initial_results  # Use raw results if pipeline fails
 
             # Format results for the LLM
             formatted_results = []
@@ -235,6 +304,7 @@ class OldSearchTool(BaseTool):
             return str(formatted_results)
 
         except Exception as e:
+            logging.error(f"Unexpected error in old search tool: {str(e)}")
             return f"Error occurred during search: {str(e)}"
 
     def _arun(self, query: str):

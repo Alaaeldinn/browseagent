@@ -22,9 +22,9 @@ from langchain_openai import ChatOpenAI
 from langchain_openai import ChatOpenAI
 
 
-def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
+def get_llm_instance(model: str = "openai/gpt-3.5-turbo", temperature: float = 0.1, max_tokens: int = None):
     """
-    Get an LLM instance using LiteLLM with fallback mechanisms
+    Get an LLM instance using LiteLLM with fallback mechanisms and user config
     """
     # For LiteLLM, we don't necessarily need an API key if using it as a proxy
     # However, we need the appropriate API key for the selected provider in the environment
@@ -61,34 +61,46 @@ def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
         # Extract the actual OpenRouter model name (without the openrouter/ prefix)
         openrouter_model = model.replace("openrouter/", "")
         try:
-            return ChatOpenAI(
-                model=openrouter_model,
-                temperature=0.1,
-                openai_api_base="https://openrouter.ai/api/v1",
-                openai_api_key=os.environ["OPENROUTER_API_KEY"],
-                default_headers={
+            # Create ChatOpenAI instance with model-specific configuration
+            llm_params = {
+                "model": openrouter_model,
+                "temperature": temperature,
+                "openai_api_base": "https://openrouter.ai/api/v1",
+                "openai_api_key": os.environ["OPENROUTER_API_KEY"],
+                "default_headers": {
                     "HTTP-Referer": os.getenv("YOUR_SITE_URL", "https://browseagent.example"),
                     "X-Title": os.getenv("YOUR_APP_NAME", "BrowseAgent"),
                 },
-                request_timeout=30
-            )
+                "request_timeout": 30
+            }
+
+            # Add max_tokens if specified
+            if max_tokens:
+                llm_params["max_tokens"] = max_tokens
+
+            return ChatOpenAI(**llm_params)
         except Exception as e:
             # If OpenRouter model fails, try a fallback model
             print(f"Error initializing OpenRouter model {openrouter_model}: {e}")
             try:
-                # Fallback to a known free model
+                # Fallback to a known free model with user config
                 fallback_model = "google/gemma-7b-it"  # This is typically free
-                return ChatOpenAI(
-                    model=fallback_model,
-                    temperature=0.1,
-                    openai_api_base="https://openrouter.ai/api/v1",
-                    openai_api_key=os.environ["OPENROUTER_API_KEY"],
-                    default_headers={
+                fallback_params = {
+                    "model": fallback_model,
+                    "temperature": temperature,
+                    "openai_api_base": "https://openrouter.ai/api/v1",
+                    "openai_api_key": os.environ["OPENROUTER_API_KEY"],
+                    "default_headers": {
                         "HTTP-Referer": os.getenv("YOUR_SITE_URL", "https://browseagent.example"),
                         "X-Title": os.getenv("YOUR_APP_NAME", "BrowseAgent"),
                     },
-                    request_timeout=30
-                )
+                    "request_timeout": 30
+                }
+
+                if max_tokens:
+                    fallback_params["max_tokens"] = max_tokens
+
+                return ChatOpenAI(**fallback_params)
             except Exception:
                 # If fallback also fails, raise the original error
                 raise e
@@ -96,31 +108,42 @@ def get_llm_instance(model: str = "openai/gpt-3.5-turbo"):
     # For non-OpenRouter models, create ChatOpenAI instance with the specified model
     # LiteLLM supports multiple providers via the model parameter (e.g., "openai/gpt-3.5-turbo", "anthropic/claude-3", etc.)
     try:
-        return ChatOpenAI(
-            model=model,
-            temperature=0.1,
-            request_timeout=30
-        )
+        llm_params = {
+            "model": model,
+            "temperature": temperature,
+            "request_timeout": 30
+        }
+
+        if max_tokens:
+            llm_params["max_tokens"] = max_tokens
+
+        return ChatOpenAI(**llm_params)
     except Exception as e:
         print(f"Error initializing model {model}: {e}")
-        # Fallback to a default model
-        return ChatOpenAI(
-            model="gpt-3.5-turbo",  # Default fallback
-            temperature=0.1,
-            request_timeout=30
-        )
+        # Fallback to a default model with user config
+        fallback_params = {
+            "model": "gpt-3.5-turbo",  # Default fallback
+            "temperature": temperature,
+            "request_timeout": 30
+        }
+
+        if max_tokens:
+            fallback_params["max_tokens"] = max_tokens
+
+        return ChatOpenAI(**fallback_params)
 
 
 class BrowseAgent:
-    def __init__(self, llm_provider: str = "openai/gpt-3.5-turbo", searx_host: str = "https://searx.space", use_searxng: bool = True):
+    def __init__(self, llm_provider: str = "openai/gpt-3.5-turbo", searx_host: str = "https://searx.space", use_searxng: bool = True,
+                 temperature: float = 0.1, max_tokens: int = None):
         """
-        Initialize the BrowseAgent with a specific LLM provider
+        Initialize the BrowseAgent with a specific LLM provider and configuration
         """
         # Initialize the LLM using LiteLLM directly
         # We'll use the litellm package to interface with various LLM providers
 
-        # Create a custom LLM that uses LiteLLM
-        self.llm = get_llm_instance(model=llm_provider)
+        # Create a custom LLM that uses LiteLLM with user configuration
+        self.llm = get_llm_instance(model=llm_provider, temperature=temperature, max_tokens=max_tokens)
 
         # Initialize the search tool based on configuration
         if use_searxng:
@@ -219,7 +242,8 @@ class BrowseAgent:
         except Exception as e:
             # More detailed error handling for different types of errors
             error_msg = str(e)
-            print(f"Error in agent execution: {error_msg}")  # For debugging
+            import logging
+            logging.error(f"Error in agent execution for query '{query[:50]}...': {error_msg}")  # For debugging
 
             if "api_key" in error_msg.lower() or "401" in error_msg or "API key" in error_msg:
                 # Handle API key issues by using the search tool directly
@@ -231,9 +255,10 @@ class BrowseAgent:
             elif "not a valid model ID" in error_msg or "model" in error_msg.lower():
                 # Handle model name format issues with fallback to default model
                 try:
-                    # Try to reinitialize with a default model
+                    # Try to reinitialize with a default model - preserving original temperature
+                    original_temperature = self.llm.temperature if hasattr(self.llm, 'temperature') else 0.1
                     original_llm = self.llm
-                    self.llm = get_llm_instance(model="openai/gpt-3.5-turbo")
+                    self.llm = get_llm_instance(model="openai/gpt-3.5-turbo", temperature=original_temperature)
 
                     # Recreate the agent with the new LLM
                     prompt = ChatPromptTemplate.from_messages([
@@ -284,15 +309,29 @@ def process_query_with_agent(
     query: str,
     llm_provider: str = "openai/gpt-3.5-turbo",
     searx_host: str = "https://searx.space",
-    use_searxng: bool = True
+    use_searxng: bool = True,
+    temperature: float = 0.1,
+    max_tokens: int = None
 ) -> Dict[str, Any]:
     """
-    Process a query with the BrowseAgent with error handling
+    Process a query with the BrowseAgent with error handling and configuration
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
-        agent = BrowseAgent(llm_provider=llm_provider, searx_host=searx_host, use_searxng=use_searxng)
+        logger.info(f"Processing query with model {llm_provider}, temperature {temperature}, max_tokens {max_tokens}")
+
+        agent = BrowseAgent(
+            llm_provider=llm_provider,
+            searx_host=searx_host,
+            use_searxng=use_searxng,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
         result = agent.run_query(query)
 
+        logger.info(f"Query processed successfully with model {llm_provider}")
         return {
             "query": query,
             "llm_provider": llm_provider,
@@ -301,6 +340,7 @@ def process_query_with_agent(
             "status": "success"
         }
     except Exception as e:
+        logger.error(f"Error processing query with model {llm_provider}: {str(e)}")
         return {
             "query": query,
             "llm_provider": llm_provider,
