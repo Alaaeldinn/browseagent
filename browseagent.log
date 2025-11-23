@@ -4,3 +4,19 @@
 2025-11-23 06:19:05,825 - app - INFO - Request completed: 200 in 0.00s
 2025-11-23 06:19:25,520 - app - INFO - Incoming request: GET http://localhost:8000/providers
 2025-11-23 06:19:25,520 - app - INFO - Request completed: 200 in 0.00s
+2025-11-23 13:14:34,720 - app - INFO - Incoming request: GET http://localhost:8000/health
+2025-11-23 13:14:34,721 - app - INFO - Request completed: 200 in 0.00s
+2025-11-23 13:49:32,401 - app - INFO - Incoming request: GET http://localhost:8000/health
+2025-11-23 13:49:32,403 - app - INFO - Request completed: 200 in 0.00s
+2025-11-23 13:52:38,722 - app - INFO - Incoming request: OPTIONS http://localhost:8000/session/create
+2025-11-23 13:52:38,723 - app - INFO - Request completed: 200 in 0.00s
+2025-11-23 13:52:38,724 - app - INFO - Incoming request: POST http://localhost:8000/session/create
+2025-11-23 13:52:38,726 - openrouter - INFO - Starting API key validation
+2025-11-23 13:52:39,339 - openrouter - ERROR - Unexpected error during API key validation: Expecting value: line 1 column 1 (char 0)
+2025-11-23 13:52:39,340 - app - WARNING - Invalid API key provided for session creation: Expecting value: line 1 column 1 (char 0)
+2025-11-23 13:52:39,341 - app - INFO - Request completed: 200 in 0.62s
+2025-11-23 13:52:50,819 - app - INFO - Incoming request: POST http://localhost:8000/session/create
+2025-11-23 13:52:50,820 - openrouter - INFO - Starting API key validation
+2025-11-23 13:52:51,264 - openrouter - ERROR - Unexpected error during API key validation: Expecting value: line 1 column 1 (char 0)
+2025-11-23 13:52:51,266 - app - WARNING - Invalid API key provided for session creation: Expecting value: line 1 column 1 (char 0)
+2025-11-23 13:52:51,267 - app - INFO - Request completed: 200 in 0.45s

@@ -1,106 +1,216 @@
-# BrowseAgent: AI-Powered Search Assistant
+# BrowseAgent
 
-## Project Overview
+BrowseAgent is an intelligent search assistant that leverages large language models to provide contextual, relevant search results. It combines the power of SearXNG for privacy-respecting web searches with OpenRouter for advanced language model processing.
 
-BrowseAgent is an intelligent search assistant that leverages large language models to provide contextual, relevant search results. The system extracts optimal search keywords from user prompts, performs searches, ranks results using embedding similarity, and generates comprehensive responses based on the top results.
+## Table of Contents
 
-This project is being developed as a Minimum Viable Product (MVP) to establish a robust, scalable, and user-friendly core platform.
+- [Features](#features)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Endpoints](#api-endpoints)
+- [Frontend Development](#frontend-development)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Guiding Principles for Development
+## Features
 
-This document serves as the primary guide for the AI coding agent. To ensure the highest quality and modern implementation, the agent is encouraged to:
+- Privacy-respecting web searches using SearXNG
+- Integration with OpenRouter for advanced language models
+- Session management with API key handling
+- Model selection and configuration
+- Rate limiting and usage tracking
+- Comprehensive search result processing pipeline
+- Semantic search result ranking
+- Frontend with ChatGPT-like interface
 
--   **Actively Research:** Proactively search for the latest documentation, tutorials, and best practices for all technologies used (e.g., FastAPI, LangChain, SearXNG, OpenRouter API).
--   **Seek Optimal Solutions:** Evaluate different libraries or approaches before implementation to choose the most efficient and maintainable one.
--   **Clarify Ambiguities:** If any requirement in this document or the resulting `plan.md` is unclear, seek clarification or propose a well-reasoned solution.
+## Architecture
 
-## Current Architecture
+BrowseAgent follows a modular architecture with clear separation of concerns:
 
-### Flow
-1.  User enters a prompt.
-2.  LLM extracts optimal search keywords.
-3.  Agent performs search via a tool call.
-4.  Results (body, metadata) are collected.
-5.  Embedding similarity scoring is applied to rank results.
-6.  Top 5 results are extracted.
-7.  These results are used as context to generate a final response.
+- **Backend API**: FastAPI application handling all server-side logic
+- **Search Tools**: SearXNG and DuckDuckGo integration for web searches
+- **LLM Integration**: OpenRouter client for language model processing
+- **Session Management**: In-memory session storage with auto-cleanup
+- **Search Pipeline**: Comprehensive processing of search results
+- **Frontend**: React-based ChatGPT-like interface
 
-### Technology Stack
--   **LangChain:** For LLM orchestration and tool management.
--   **FastAPI:** For the high-performance API backend.
--   **FastHTML:** For the initial frontend interface (to be replaced).
+## Project Structure
 
-## MVP Requirements
+```
+browseagent/
+├── app.py                 # Main FastAPI application
+├── agent.py              # BrowseAgent implementation
+├── search_tool.py        # Search tool implementations
+├── search_result_pipeline.py # Search result processing pipeline
+├── openrouter.py         # OpenRouter API integration
+├── session_manager.py    # Session management
+├── requirements.txt      # Backend dependencies
+├── frontend/             # React frontend
+│   ├── package.json
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   ├── pages/        # Page components
+│   │   ├── hooks/        # Custom React hooks
+│   │   ├── utils/        # Utility functions
+│   │   └── services/     # API services
+│   └── public/           # Public assets
+├── tests/                # Test files
+├── docker-compose.yml    # Docker configuration
+├── Dockerfile            # Backend Docker configuration
+├── Dockerfile.frontend   # Frontend Docker configuration
+└── README.md
+```
 
-### Core Improvements
-1.  **Search Infrastructure**
-    -   Replace the current search tool with **SearXNG**, an open-source metasearch engine, to gain control and privacy.
-    -   Configure and deploy SearXNG for optimal result quality.
+## Installation
 
-2.  **Model Integration**
-    -   Implement **OpenRouter** integration.
-    -   Allow users to provide their own OpenRouter API key.
-    -   Enable users to select a model from a curated list of **free models available on OpenRouter** for the MVP.
+### Prerequisites
 
-3.  **Quality Assurance**
-    -   Develop comprehensive unit tests for all core API endpoints.
-    -   Implement integration tests for the complete search-and-response flow.
+- Python 3.8+
+- Node.js 16+ (for frontend development)
+- Docker and docker-compose (for containerized deployment)
 
-4.  **User Interface**
-    -   Design and implement a modern, **ChatGPT-like conversational interface**.
-    -   Improve user experience with real-time feedback, streaming responses, and clear result visualization.
+### Backend Setup
 
-5.  **Deployment**
-    -   Create a production-ready **Docker image** for the API.
-    -   Ensure all dependencies from the virtual environment are correctly managed within the Docker container.
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd browseagent
+   ```
 
-### Future Features (Post-MVP)
--   **Deep Research:** Implement multi-step reasoning for complex, multi-faceted queries.
--   **Deep Think:** Enhanced analytical capabilities using advanced prompting techniques.
--   **Scientific Research Mode:** Specialized search focused exclusively on academic papers, journals, and scholarly databases.
--   **Real-time News Integration:** Focused search and synthesis of current news from various sources.
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
 
-## Development Approach (Phased)
+3. Install backend dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-The project will be developed iteratively, broken down into logical phases. The `plan.md` will detail the specific tasks within each phase.
+4. Create a `.env` file with your API keys:
+   ```env
+   OPENROUTER_API_KEY=your_openrouter_api_key
+   SITE_URL=https://your-site.com
+   ```
 
-*   **Phase 1: Infrastructure & Core API**
-    *   Integrate and configure SearXNG as the primary search tool.
-    *   Set up OpenRouter/LiteLLM for model management.
-    *   Restructure the core API to handle user-provided API keys and model selection.
+### Frontend Setup
 
-*   **Phase 2: User Experience & Core Logic**
-    *   Implement the logic for users to input and securely store their OpenRouter API key.
-    *   Create the model selection interface (frontend and backend).
-    *   Update the search flow to use the user's chosen model and API key.
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
 
-*   **Phase 3: Quality & Testing**
-    *   Write and execute unit tests for all new and existing API functionality.
-    *   Develop integration tests for the end-to-end user journey.
-    *   Refactor code for clarity and performance based on test results.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-*   **Phase 4: UI/UX Overhaul**
-    *   Design the new ChatGPT-like UI.
-    *   Implement the frontend, replacing FastHTML with a modern framework (e.g., Typescript, React, Vue, or Svelte)(the easiest , the     fastest).
-    *   Connect the frontend to the backend API, ensuring smooth data flow and state management.
+3. Create a `.env` file in the frontend directory:
+   ```env
+   REACT_APP_API_BASE_URL=http://localhost:8000
+   ```
 
-*   **Phase 5: Deployment & Documentation**
-    *   Write a robust `Dockerfile` and `docker-compose.yml` for easy deployment.
-    *   Create comprehensive API documentation (e.g., with Swagger/OpenAPI).
-    *   Finalize the project README and user guides.
+## Usage
 
-## MVP Success Criteria
+### Running the Backend
 
--   A user can sign up, add their OpenRouter API key, and select a free model.
--   Search queries are processed using SearXNG and return relevant, ranked results.
--   The application is fully tested with a target of >90% code coverage for critical paths.
--   The UI provides an intuitive, responsive, ChatGPT-like conversational experience.
--   The entire application can be reliably deployed to a production environment using Docker.
+1. Start the backend server:
+   ```bash
+   uvicorn app:app --reload --port 8000
+   ```
 
-## Next Steps
+### Running the Frontend
 
-This README will serve as the foundation for creating a detailed `plan.md`. That plan will break down each phase into granular, actionable tasks for the coding agent to execute.
+1. In a separate terminal, navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
 
----
+2. Start the development server:
+   ```bash
+   npm start
+   ```
 
-*This document is a living guide and will be updated as the project evolves and new requirements emerge.*
+### Using Docker
+
+1. Build and start the entire application:
+   ```bash
+   docker-compose up --build
+   ```
+
+The application will be available at `http://localhost:3000` (frontend) and `http://localhost:8000` (backend).
+
+## API Endpoints
+
+### Authentication & Sessions
+
+- `POST /session/create` - Create a new session with API key
+- `DELETE /session` - End current session
+- `GET /session/info` - Get session information
+
+### Query Processing
+
+- `POST /query` - Process a query with the BrowseAgent
+- `POST /validate-api-key` - Validate an API key
+- `GET /models` - Get available models
+
+### Account Information
+
+- `GET /account` - Get account usage and balance
+- `POST /model/select` - Update selected model
+- `GET/POST /model/config` - Manage model configurations
+
+### Information
+
+- `GET /health` - Health check
+- `GET /` - Root endpoint
+
+## Frontend Development
+
+The frontend is built with React and follows a component-based architecture. Key features include:
+
+- ChatGPT-like conversation interface
+- Real-time streaming responses
+- Model selection dropdown
+- API key management
+- Responsive design for all devices
+
+### Key Components
+
+- `ChatInterface` - Main chat interface component
+- `Message` - Individual message bubble component
+- `SearchInput` - Input field with advanced options
+- `ModelSelector` - Model selection component
+- `SettingsPanel` - User settings and preferences
+
+### Running Development Server
+
+```bash
+cd frontend
+npm start
+```
+
+### Building for Production
+
+```bash
+cd frontend
+npm run build
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for new functionality
+5. Run tests (`pytest tests/`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

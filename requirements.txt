@@ -10,5 +10,7 @@ sentence-transformers
 litellm
 DDGS
 pydantic
-uvicorn
+uvicorn[standard]
 requests
+python-multipart
+python-dotenv

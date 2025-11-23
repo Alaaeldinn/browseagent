@@ -150,14 +150,23 @@ class BrowseAgent:
         """
 
         try:
-            response = litellm.completion(
+            # Use the underlying OpenAI client to extract keywords
+            from openai import OpenAI
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=os.environ["OPENROUTER_API_KEY"],
+            )
+
+            response = client.chat.completions.create(
                 model=self.llm.model,
-                messages=[{"role": "user", "content": keyword_extraction_prompt}]
+                messages=[{"role": "user", "content": keyword_extraction_prompt}],
+                temperature=0.1
             )
             keywords = response.choices[0].message.content.strip()
             return keywords if keywords else query  # fallback to original query if extraction fails
-        except Exception:
+        except Exception as e:
             # If LLM keyword extraction fails, return the original query
+            # print(f"Keyword extraction failed: {str(e)}")  # Commented out to avoid undefined warning
             return query
 
     def run_query(self, query: str) -> str:
