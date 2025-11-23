@@ -7,6 +7,10 @@ import time
 import logging
 import secrets
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 from agent import BrowseAgent, process_query_with_agent
 from openrouter import OpenRouterClient, get_default_free_models
 from session_manager import session_manager, create_user_session, get_user_session, update_user_model, delete_user_session

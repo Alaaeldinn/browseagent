@@ -6,6 +6,10 @@ import requests
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 
 import logging
 
