@@ -2,14 +2,13 @@ import os
 import json
 from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
+from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer, util
 import torch
-import requests
-from urllib.parse import urlencode
 
 load_dotenv()
 
@@ -24,20 +23,6 @@ class ResearchResponse(BaseModel):
     answer: str
 
 class ResearchAgent:
-    # List of public SearXNG instances to try (in order)
-    SEARXNG_INSTANCES = [
-        "https://search.inetol.net",
-        "https://searx.tiekoetter.com",
-        "https://searx.be",
-        "https://search.sapti.me",
-        "https://searx.work",
-        "https://searx.fmac.xyz",
-        "https://searx.prvcy.eu",
-        "https://search.ononoki.org",
-        "https://searx.lunar.icu",
-        "https://search.bus-hit.me",
-    ]
-    
     def __init__(self):
         # We use ChatOpenAI because OpenRouter is OpenAI-compatible
         self.llm = ChatOpenAI(
@@ -46,61 +31,34 @@ class ResearchAgent:
             model=os.getenv("OPENROUTER_MODEL"),
             temperature=0
         )
+        
+        # Initialize SearxSearchWrapper with local or remote instance
+        searx_host = os.getenv("SEARXNG_URL", "http://localhost:8888")
+        self.searx = SearxSearchWrapper(searx_host=searx_host)
+        
         # Initialize sentence transformer model for semantic search
         self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    def search_searxng(self, query: str, num_results: int = 10) -> List[Dict[str, Any]]:
+    def search_searxng(self, query: str, num_results: int = 20) -> List[Dict[str, Any]]:
         """
-        Search using SearXNG API with proper parameters from official documentation.
+        Search using SearxSearchWrapper with multi-engine meta-search.
         Returns list of search results with title, link, and snippet.
-        
-        Official docs: https://docs.searxng.org/dev/search_api.html
         """
-        # Proper SearXNG API parameters based on documentation
-        params = {
-            'q': query,                    # Search query
-            'format': 'json',              # Output format (must be enabled in instance)
-            'language': 'en',              # Language code
-            'safesearch': '0',             # Safe search: 0=none, 1=moderate, 2=strict
-            'pageno': '1',                 # Page number
-        }
-        
-        # Try each instance until one works
-        for instance in self.SEARXNG_INSTANCES:
-            try:
-                # Use /search endpoint as per documentation
-                url = f"{instance}/search"
-                response = requests.get(url, params=params, timeout=10)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    # Parse results according to SearXNG JSON response format
-                    # Response contains 'results' array with objects having:
-                    # - title, url, content, engine, category
-                    results = data.get('results', [])
-                    
-                    # Format results for our agent
-                    formatted_results = []
-                    for r in results[:num_results]:
-                        formatted_results.append({
-                            'title': r.get('title', ''),
-                            'link': r.get('url', ''),           # SearXNG uses 'url' not 'link'
-                            'snippet': r.get('content', '')     # SearXNG uses 'content' not 'snippet'
-                        })
-                    
-                    print(f"✓ Successfully fetched {len(formatted_results)} results from {instance}")
-                    return formatted_results
-                else:
-                    print(f"✗ {instance} returned status {response.status_code}")
-                    
-            except Exception as e:
-                print(f"✗ {instance} failed: {str(e)}")
-                continue
-        
-        # If all instances fail, return empty list
-        print("✗ All SearXNG instances failed")
-        return []
+        try:
+            # Use .results() method to get structured data
+            # This aggregates results from multiple search engines
+            results = self.searx.results(
+                query,
+                num_results=num_results,
+                engines=['google', 'bing', 'duckduckgo', 'wikipedia']  # Multi-engine search
+            )
+            
+            print(f"✓ Successfully fetched {len(results)} results from SearXNG")
+            return results
+            
+        except Exception as e:
+            print(f"✗ SearXNG search failed: {str(e)}")
+            return []
 
     def generate_keywords(self, query: str) -> List[str]:
         prompt = ChatPromptTemplate.from_template(
