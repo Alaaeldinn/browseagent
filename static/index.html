@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrowseAgent</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="new-chat-btn">
+                <button onclick="location.reload()">+ New Chat</button>
+            </div>
+            <div class="history">
+                <p>Research History</p>
+                <!-- History items would go here -->
+            </div>
+        </div>
+        <div class="main-content">
+            <div class="chat-container" id="chat-container">
+                <div class="welcome-message">
+                    <h1>BrowseAgent</h1>
+                    <p>Your AI-powered research assistant.</p>
+                </div>
+            </div>
+            <div class="input-area">
+                <form id="chat-form">
+                    <div class="input-wrapper">
+                        <textarea id="user-input" placeholder="Ask anything..." rows="1"
+                            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <button type="submit" id="send-btn">
+                            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
+                                stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+                <div class="footer-text">
+                    BrowseAgent can make mistakes. Consider checking important information.
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

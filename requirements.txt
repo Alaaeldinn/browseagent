@@ -1,5 +1,4 @@
 fastapi
-python-fasthtml
 langchain==0.2.10
 langchain-community==0.2.10
 langchain-core
@@ -8,9 +7,9 @@ langchain-openai
 langsmith
 sentence-transformers
 litellm
-DDGS
 pydantic
 uvicorn[standard]
 requests
 python-multipart
 python-dotenv
+openai
