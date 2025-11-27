@@ -1,7 +1,8 @@
-from agent import agent
+from agent import ResearchAgent
 import json
 
 try:
+    agent = ResearchAgent()
     print("Running agent with query: 'latest advancements in solid state batteries'")
     response = agent.run("latest advancements in solid state batteries")
     print("\nKeywords:", response.keywords)
@@ -11,3 +12,5 @@ try:
     print("\nAnswer:", response.answer)
 except Exception as e:
     print(f"Error: {e}")
+    import traceback
+    traceback.print_exc()
