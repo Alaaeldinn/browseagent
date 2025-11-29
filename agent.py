@@ -1,13 +1,13 @@
 import os
 import requests
-from typing import List, Dict, Any
+from typing import List, Dict
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain.agents import create_tool_calling_agent, AgentExecutor
-from pydantic import BaseModel, Field
-from sentence_transformers import SentenceTransformer, util
+from pydantic import BaseModel
+from model2vec import StaticModel
 import torch
 
 load_dotenv()
@@ -89,10 +89,11 @@ class ResearchAgent:
             model=os.getenv("OPENROUTER_MODEL"),
             temperature=0
         )
-        
-        # Initialize sentence transformer for semantic similarity
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        
+
+        # Initialize Model2Vec for faster semantic similarity
+        # Using a pre-trained model from HuggingFace that provides good performance with speed
+        self.embedding_model = StaticModel.from_pretrained('minishlab/M2V_base_output')
+
         # Create the agent with search tool
         self.tools = [searxng_search]
         self.agent = self._create_agent()
@@ -128,27 +129,45 @@ Be concise and focused in your searches."""),
     
     def semantic_search(self, query: str, results: List[Dict[str, str]], top_k: int = 5) -> List[Dict[str, str]]:
         """
-        Perform semantic similarity search on results using sentence-transformers.
+        Perform semantic similarity search on results using Model2Vec.
         Returns top_k most similar results to the original query.
         """
         if not results:
             return []
-        
+
         # Embed the original query
-        query_embedding = self.embedding_model.encode(query, convert_to_tensor=True)
-        
+        query_embedding = self.embedding_model.encode([query])
+
+        # Convert to torch tensor
+        query_embedding = torch.tensor(query_embedding)
+
         # Embed all result contents (metadata + body)
         # Combine title and content for better semantic matching
         result_texts = [f"{r['title']} {r['content']}" for r in results]
-        result_embeddings = self.embedding_model.encode(result_texts, convert_to_tensor=True)
-        
-        # Calculate cosine similarity
-        cosine_scores = util.cos_sim(query_embedding, result_embeddings)[0]
-        
+        result_embeddings = self.embedding_model.encode(result_texts)
+
+        # Convert to torch tensor
+        result_embeddings = torch.tensor(result_embeddings)
+
+        # Calculate cosine similarity correctly
+        # query_embedding shape: [1, embedding_dim], result_embeddings shape: [num_results, embedding_dim]
+        # Need to compute similarity between query and each result
+        query_norm = torch.nn.functional.normalize(query_embedding, p=2, dim=1)  # [1, embedding_dim]
+        result_norm = torch.nn.functional.normalize(result_embeddings, p=2, dim=1)  # [num_results, embedding_dim]
+
+        # Matrix multiplication to get cosine similarities
+        cosine_scores = torch.mm(query_norm, result_norm.transpose(0, 1)).squeeze(0)  # [num_results]
+
+        # Handle case where there's only one result
+        if cosine_scores.dim() == 0:
+            cosine_scores = cosine_scores.unsqueeze(0)
+
         # Get top-k results
-        top_indices = torch.topk(cosine_scores, k=min(top_k, len(results))).indices
-        
-        top_results = [results[i] for i in top_indices]
+        top_k = min(top_k, len(results))
+        top_indices = torch.topk(cosine_scores, k=top_k).indices
+
+        # Convert tensor indices to Python integers for list indexing
+        top_results = [results[i.item()] for i in top_indices]
         print(f"\n🔍 Semantic search: Selected top {len(top_results)} most relevant results")
         return top_results
     
