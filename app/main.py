@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from agent import agent, ResearchResponse
+from src.agent import agent, ResearchResponse
 
 app = FastAPI(title="BrowseAgent")
 
@@ -25,4 +25,8 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+import os
+# Get the project root directory (one level up from app)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+static_dir = os.path.join(project_root, "static")
+app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
