@@ -4,7 +4,7 @@ langchain-community==0.2.10
 langchain-core
 langchain-hub
 langchain_ollama
-ollama 
+ollama
 langchain-experimental
 langchain-openai
 langsmith
@@ -17,3 +17,5 @@ python-multipart
 python-dotenv
 openai
 model2vec
+fastmcp
+mcp
